@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ice Rink Slot Booking</title>
+    <!-- Include FullCalendar CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
+    <style>
+        /* Custom font for the page */
+        @font-face {
+            font-family: 'Futura';
+            src: url('https://fonts.cdnfonts.com/s/23277/FuturaBT-Light.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* General body styling */
+        body {
+            font-family: 'Futura', sans-serif;
+            background-color: #50C878; /* Light green background */
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* Calendar container styling */
+        #calendar {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #FFFFFF; /* White background */
+            border: 4px solid #00b7eb; /* Blue border */
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        /* Styling for day numbers in the calendar */
+        .fc-daygrid-day-number {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2C3E50; /* Dark blue color */
+        }
+
+        /* Styling for month names in the calendar */
+        .fc-daygrid-day-month {
+            font-size: 14px;
+            font-weight: bold;
+            color: #444; /* Dark gray color */
+        }
+
+        /* Styling for individual calendar days */
+        .fc-daygrid-day {
+            background-color: #FFFFFF; /* White background */
+            cursor: pointer; /* Pointer cursor on hover */
+        }
+
+        /* Styling for past and disabled days */
+        .fc-day-past, .fc-day-disabled {
+            background-color: #F5F5F5; /* Light gray background */
+            pointer-events: none; /* Disable clicks */
+        }
+
+        /* Styling for today's date */
+        .fc-day-today {
+            background-color: #FFFFFF !important; /* White background */
+        }
+
+        /* Styling for the top part of each day cell */
+        .fc-daygrid-day-top {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Styling for FullCalendar buttons */
+        .fc-button {
+            background-color: #00b7eb !important; /* Blue background */
+            color: white !important; /* White text */
+            border: none !important;
+            padding: 8px 12px !important;
+            font-size: 14px !important;
+            font-family: 'Futura', sans-serif !important;
+            border-radius: 5px !important;
+        }
+
+        /* Hover effect for FullCalendar buttons */
+        .fc-button:hover {
+            background-color: #0055AA !important; /* Darker blue on hover */
+        }
+
+        /* General button styling */
+        button {
+            background-color: #00BCD4; /* Light blue background */
+            color: white; /* White text */
+            border: none;
+            padding: 10px 15px;
+            font-size: 16px;
+            font-family: 'Futura', sans-serif;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        /* Hover effect for general buttons */
+        button:hover {
+            background-color: #0097A7; /* Darker blue on hover */
+        }
+
+        /* Styling for dropdown selects */
+        select {
+            width: 250px;
+            padding: 10px;
+            font-size: 16px;
+            font-family: 'Futura', sans-serif;
+            border: 1px solid #0066CC; /* Blue border */
+            border-radius: 5px;
+            background-color: #E8F5E9; /* Light green background */
+            color: #2C3E50; /* Dark blue text */
+        }
+
+        /* Focus effect for dropdown selects */
+        select:focus {
+            outline: none;
+            border-color: #0055AA; /* Darker blue border on focus */
+        }
+
+        /* Styling for clicked days */
+        .fc-day-clicked {
+            background-color: #E3F2FD !important; /* Light blue background */
+        }
+
+        /* Modal styling */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+        }
+
+        /* Modal content styling */
+        .modal-content {
+            background-color: #fff; /* White background */
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 10px;
+        }
+
+        /* Close button styling */
+        .close {
+            color: #aaa; /* Light gray color */
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /* Hover effect for close button */
+        .close:hover,
+        .close:focus {
+            color: black; /* Black color on hover */
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Styling for slot items in the modal */
+        .slot-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Styling for compact slot display in calendar cells */
+        .compact-slot {
+            font-size: 10px;
+            color: #0066CC; /* Blue color */
+            margin: 2px 0;
+            text-align: right;
+            padding-right: 5px;
+            font-weight: bold;
+        }
+
+        /* Container for slots in calendar cells */
+        .slots-container {
+            margin-top: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            width: 100%;
+        }
+
+        /* Footer button styling */
+        .fc-footer-toolbar {
+            padding: 10px;
+            text-align: center;
+        }
+
+        /* Custom button for booking slots */
+        .fc-bookButton-button {
+            background-color: #00b7eb !important; /* Blue background */
+            color: white !important; /* White text */
+            border: none !important;
+            padding: 8px 12px !important;
+            font-size: 14px !important;
+            font-family: 'Futura', sans-serif !important;
+            border-radius: 5px !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Shadow effect */
+        }
+        /* Hover effect for booking button */
+        .fc-bookButton-button:hover {
+            background-color: #0055AA !important; /* Darker blue on hover */
+        }
+
+        /* Quantity input styling */
+        .quantity-input {
+            width: 50px;
+            padding: 5px;
+            margin-left: 10px;
+            border: 1px solid #0066CC;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        /* Styling for availability display */
+        .availability {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        /* Error message styling */
+        .error-message {
+            color: #D32F2F;
+            font-size: 14px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Calendar container -->
+    <div id="calendar"></div>
+    <!-- Slot display container -->
+    <div id="slots"></div>
+
+    <!-- Modal for slot selection -->
+    <div id="slotModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span> <!-- Close button -->
+            <h3 id="modalDate"></h3> <!-- Display selected date -->
+            <div id="slotList"></div> <!-- List of slots -->
+            <div id="errorMessage" class="error-message">You cannot book more slots than available.</div>
+            <button onclick="saveSlots()" style="background-color: #0066CC; margin-top: 15px;">Save Slots</button> <!-- Save button -->
+        </div>
+    </div>
+
+    <!-- Include FullCalendar JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+    <script>
+        // Initialize the calendar when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar'); // Calendar element
+            var modal = document.getElementById('slotModal'); // Modal element
+            var span = document.getElementsByClassName("close")[0]; // Close button
+            var selectedDate = null; // Store the selected date
+            var selectedSlots = {}; // Store selected slots for each date
+            var slotAvailability = {}; // Store available slots for each time slot
+
+            // Initialize slot availability (3 slots per time slot initially)
+            function initializeSlotAvailability() {
+                var slots = generateSlots();
+                var dates = getDatesInRange(new Date('2025-01-01'), new Date(new Date().setMonth(new Date().getMonth() + 1)));
+                
+                dates.forEach(date => {
+                    var dateKey = formatDate(date);
+                    slotAvailability[dateKey] = {};
+                    
+                    slots.forEach(slot => {
+                        slotAvailability[dateKey][slot] = 3; // 3 slots available per time slot
+                    });
+                });
+            }
+
+            // Initialize availability
+            initializeSlotAvailability();
+
+            // Initialize FullCalendar
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth', // Default view
+                validRange: {
+                    start: '2025-01-01', // Start date for valid range
+                    end: new Date(new Date().setMonth(new Date().getMonth() + 1)) // End date (1 month from now)
+                },
+                // Handle date clicks
+                dateClick: function(info) {
+                    var date = info.date;
+
+                    // Prevent selection of past dates
+                    if (date < new Date()) {
+                        alert("Cannot select past dates.");
+                        return;
+                    }
+
+                    selectedDate = date; // Store the selected date
+                    document.getElementById('modalDate').innerText = formatDate(selectedDate); // Display date in modal
+                    showSlotsModal(); // Show the slot selection modal
+                },
+                // Header toolbar configuration
+                headerToolbar: {
+                    left: 'prev,next', // Previous and next buttons
+                    center: 'title', // Title (month and year)
+                    right: 'today' // Today button
+                },
+                // Footer toolbar configuration
+                footerToolbar: {
+                    center: 'bookButton' // Custom button for booking slots
+                },
+                // Custom button for booking slots
+                customButtons: {
+                    bookButton: {
+                        text: 'Book Selected Slots',
+                        click: function() {
+                            bookSlot(); // Trigger booking function
+                        }
+                    }
+                },
+                // Custom rendering for calendar cells
+                dayCellDidMount: function(info) {
+                    var date = info.date;
+                    var dateKey = formatDate(date);
+
+                    // Check if there are slots for this date
+                    if (selectedSlots[dateKey]) {
+                        // Create a container for slots
+                        var slotsContainer = document.createElement('div');
+                        slotsContainer.className = 'slots-container';
+
+                        // Get unique time slots
+                        var timeSlots = {};
+                        for (var slotKey in selectedSlots[dateKey]) {
+                            var slotCount = selectedSlots[dateKey][slotKey];
+                            if (slotCount > 0) {
+                                timeSlots[slotKey] = slotCount;
+                            }
+                        }
+
+                        // Add each slot to the container
+                        Object.keys(timeSlots).forEach(slot => {
+                            var count = timeSlots[slot];
+                            var compactSlot = slot.replace(/:00/g, '').replace(' - ', '-'); // Compact slot format
+                            var slotElement = document.createElement('div');
+                            slotElement.className = 'compact-slot';
+                            slotElement.textContent = `${compactSlot} (${count})`;
+                            slotsContainer.appendChild(slotElement);
+                        });
+
+                        // Append the container to the calendar cell
+                        info.el.appendChild(slotsContainer);
+                    }
+                },
+                selectable: false, // Disable date range selection
+                selectMirror: false // Disable selection mirror
+            });
+
+            calendar.render(); // Render the calendar
+
+            // Close the modal when the close button is clicked
+            span.onclick = function() {
+                modal.style.display = "none";
+            }
+
+            // Close the modal when clicking outside of it
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
+
+            // Function to show the slot selection modal
+            function showSlotsModal() {
+                var slots = generateSlots(); // Generate available slots
+                var dateKey = formatDate(selectedDate); // Format the selected date
+                var slotList = document.getElementById('slotList');
+                slotList.innerHTML = ''; // Clear previous slots
+
+                // Initialize selected slots for this date if not exists
+                if (!selectedSlots[dateKey]) {
+                    selectedSlots[dateKey] = {};
+                }
+
+                // Add each slot with a quantity input
+                slots.forEach(slot => {
+                    var slotItem = document.createElement('div');
+                    slotItem.className = 'slot-item';
+                    
+                    // Create label
+                    var label = document.createElement('label');
+                    label.htmlFor = slot;
+                    label.innerText = slot;
+                    slotItem.appendChild(label);
+                    
+                    // Create quantity input
+                    var quantityInput = document.createElement('input');
+                    quantityInput.type = 'number';
+                    quantityInput.min = '0';
+                    quantityInput.max = slotAvailability[dateKey][slot];
+                    quantityInput.value = selectedSlots[dateKey][slot] || 0;
+                    quantityInput.className = 'quantity-input';
+                    quantityInput.dataset.slot = slot;
+                    
+                    // Add event listener to validate input
+                    quantityInput.addEventListener('input', function() {
+                        validateSlotInput(this, dateKey, slot);
+                    });
+                    
+                    slotItem.appendChild(quantityInput);
+                    
+                    // Display availability
+                    var availabilitySpan = document.createElement('span');
+                    availabilitySpan.className = 'availability';
+                    availabilitySpan.innerText = `Available: ${slotAvailability[dateKey][slot]}`;
+                    slotItem.appendChild(availabilitySpan);
+                    
+                    slotList.appendChild(slotItem);
+                });
+
+                modal.style.display = "block"; // Show the modal
+                document.getElementById('errorMessage').style.display = 'none'; // Hide error message
+            }
+
+            // Function to validate slot input
+            function validateSlotInput(input, dateKey, slot) {
+                var value = parseInt(input.value) || 0;
+                var max = slotAvailability[dateKey][slot];
+                
+                // Ensure value is not negative
+                if (value < 0) {
+                    input.value = 0;
+                    return;
+                }
+                
+                // Ensure value doesn't exceed available slots
+                if (value > max) {
+                    input.value = max;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    setTimeout(() => {
+                        document.getElementById('errorMessage').style.display = 'none';
+                    }, 3000);
+                }
+            }
+
+            // Function to save selected slots
+            window.saveSlots = function() {
+                var dateKey = formatDate(selectedDate); // Format the selected date
+                var inputs = document.querySelectorAll('#slotList input[type="number"]'); // Get all quantity inputs
+                
+                // Store selected quantities
+                inputs.forEach(input => {
+                    var slot = input.dataset.slot;
+                    var quantity = parseInt(input.value) || 0;
+                    
+                    if (quantity > 0) {
+                        selectedSlots[dateKey][slot] = quantity;
+                    } else {
+                        delete selectedSlots[dateKey][slot];
+                    }
+                });
+
+                // Refresh the calendar to show updated slots
+                calendar.destroy();
+                calendar = new FullCalendar.Calendar(calendarEl, {
+                    initialView: 'dayGridMonth',
+                    validRange: {
+                        start: '2025-01-01',
+                        end: new Date(new Date().setMonth(new Date().getMonth() + 1))
+                    },
+                    dateClick: function(info) {
+                        var date = info.date;
+
+                        if (date < new Date()) {
+                            alert("Cannot select past dates.");
+                            return;
+                        }
+
+                        selectedDate = date;
+                        document.getElementById('modalDate').innerText = formatDate(selectedDate);
+                        showSlotsModal();
+                    },
+                    headerToolbar: {
+                        left: 'prev,next',
+                        center: 'title',
+                        right: 'today'
+                    },
+                    footerToolbar: {
+                        center: 'bookButton'
+                    },
+                    customButtons: {
+                        bookButton: {
+                            text: 'Book Selected Slots',
+                            click: function() {
+                                bookSlot();
+                            }
+                        }
+                    },
+                    dayCellDidMount: function(info) {
+                        var date = info.date;
+                        var dateKey = formatDate(date);
+
+                        if (selectedSlots[dateKey]) {
+                            var slotsContainer = document.createElement('div');
+                            slotsContainer.className = 'slots-container';
+
+                            var timeSlots = {};
+                            for (var slotKey in selectedSlots[dateKey]) {
+                                var slotCount = selectedSlots[dateKey][slotKey];
+                                if (slotCount > 0) {
+                                    timeSlots[slotKey] = slotCount;
+                                }
+                            }
+
+                            Object.keys(timeSlots).forEach(slot => {
+                                var count = timeSlots[slot];
+                                var compactSlot = slot.replace(/:00/g, '').replace(' - ', '-');
+                                var slotElement = document.createElement('div');
+                                slotElement.className = 'compact-slot';
+                                slotElement.textContent = `${compactSlot} (${count})`;
+                                slotsContainer.appendChild(slotElement);
+                            });
+
+                            info.el.appendChild(slotsContainer);
+                        }
+                    },
+                    selectable: false,
+                    selectMirror: false
+                });
+                calendar.render();
+
+                modal.style.display = "none"; // Hide the modal
+            }
+
+            // Function to format a date as "Month Day"
+            function formatDate(date) {
+                var month = date.toLocaleString('default', { month: 'long' }); // Get month name
+                var day = date.getDate(); // Get day of the month
+                return `${month} ${day}`;
+            }
+
+            // Function to generate time slots from 9 AM to 5 PM
+            function generateSlots() {
+                var slots = [];
+                for (var i = 9; i < 17; i++) {
+                    slots.push(`${i}:00 - ${i + 1}:00`); // Add slots in "HH:00 - HH:00" format
+                }
+                return slots;
+            }
+
+            // Function to get all dates in a range
+            function getDatesInRange(startDate, endDate) {
+                var dates = [];
+                var currentDate = new Date(startDate);
+                
+                while (currentDate <= endDate) {
+                    dates.push(new Date(currentDate));
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                return dates;
+            }
+
+            // Function to book selected slots
+            window.bookSlot = function() {
+                var bookedSlots = [];
+                for (var date in selectedSlots) {
+                    var slotsForDate = [];
+                    
+                    for (var slot in selectedSlots[date]) {
+                        var count = selectedSlots[date][slot];
+                        if (count > 0) {
+                            slotsForDate.push(`${slot} (${count})`);
+                            
+                            // Update availability after booking
+                            slotAvailability[date][slot] -= count;
+                        }
+                    }
+                    
+                    if (slotsForDate.length > 0) {
+                        bookedSlots.push(`${date}: ${slotsForDate.join(', ')}`);
+                    }
+                }
+                
+                if (bookedSlots.length > 0) {
+                    alert('Booked slots:\n' + bookedSlots.join('\n')); // Show booked slots in an alert
+                    
+                    // Clear selected slots after booking
+                    selectedSlots = {};
+                    
+                    // Refresh calendar to update display
+                    calendar.destroy();
+                    calendar = new FullCalendar.Calendar(calendarEl, {
+                        initialView: 'dayGridMonth',
+                        validRange: {
+                            start: '2025-01-01',
+                            end: new Date(new Date().setMonth(new Date().getMonth() + 1))
+                        },
+                        dateClick: function(info) {
+                            var date = info.date;
+
+                            if (date < new Date()) {
+                                alert("Cannot select past dates.");
+                                return;
+                            }
+
+                            selectedDate = date;
+                            document.getElementById('modalDate').innerText = formatDate(selectedDate);
+                            showSlotsModal();
+                        },
+                        headerToolbar: {
+                            left: 'prev,next',
+                            center: 'title',
+                            right: 'today'
+                        },
+                        footerToolbar: {
+                            center: 'bookButton'
+                        },
+                        customButtons: {
+                            bookButton: {
+                                text: 'Book Selected Slots',
+                                click: function() {
+                                    bookSlot();
+                                }
+                            }
+                        },
+                        dayCellDidMount: function(info) {
+                            // After booking, this will reflect the updates
+                        },
+                        selectable: false,
+                        selectMirror: false
+                    });
+                    calendar.render();
+                    
+                } else {
+                    alert('No slots selected.'); // Show alert if no slots are selected
+                }
+            };
+        });
+    </script>
+</body>
+</html>
