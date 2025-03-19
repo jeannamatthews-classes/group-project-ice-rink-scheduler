@@ -48,6 +48,10 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: pointer;
+        }
+        .rental-content {
+            flex-grow: 1; /* Takes remaining space */
         }
         .action-buttons {
             display: flex;
@@ -93,6 +97,44 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             z-index: 1000;
         }
+        .invoice-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .invoice-popup button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            background-color: #D32F2F;
+            color: white;
+        }
+        #passwordPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #passwordPopup input {
+            display: block;
+            margin-bottom: 10px;
+            width: 100%;
+            padding: 5px;
+        }
     </style>
 </head>
 <body>
@@ -100,9 +142,27 @@
         <div class="rental-sections">
             <div class="section" id="pending">
                 <h2>Pending Rentals</h2>
-                <div class="rental-item">Ice Slot #1 - Pending <span class="action-buttons"><button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button></span></div>
-                <div class="rental-item">Ice Slot #2 - Pending <span class="action-buttons"><button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button></span></div>
-                <div class="rental-item">Ice Slot #3 - Pending <span class="action-buttons"><button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button></span></div>
+                <div class="rental-item">
+                    <div class="rental-content" onclick="showInvoice('INV123', '10:00 AM - 11:00 AM', '$50', 'USER001', 'Figure Skating')">Ice Slot #1 - Pending</div>
+                    <span class="action-buttons">
+                        <button class="approve" onclick="moveSlot(this, 'accepted')">✔</button>
+                        <button class="decline" onclick="moveSlot(this, 'declined')">✖</button>
+                    </span>
+                </div>
+                <div class="rental-item">
+                    <div class="rental-content" onclick="showInvoice('INV124', '11:00 AM - 12:00 PM', '$60', 'USER002', 'Hockey Game')">Ice Slot #2 - Pending</div>
+                    <span class="action-buttons">
+                        <button class="approve" onclick="moveSlot(this, 'accepted')">✔</button>
+                        <button class="decline" onclick="moveSlot(this, 'declined')">✖</button>
+                    </span>
+                </div>
+                <div class="rental-item">
+                    <div class="rental-content" onclick="showInvoice('INV125', '12:00 PM - 1:00 PM', '$45', 'USER003', 'Training Session')">Ice Slot #3 - Pending</div>
+                    <span class="action-buttons">
+                        <button class="approve" onclick="moveSlot(this, 'accepted')">✔</button>
+                        <button class="decline" onclick="moveSlot(this, 'declined')">✖</button>
+                    </span>
+                </div>
             </div>
             <div class="section" id="accepted">
                 <h2>Accepted Rentals</h2>
@@ -116,6 +176,7 @@
             <div id="calendar"></div>
         </div>
     </div>
+    
     <div class="account-circle" onclick="toggleAccountPopup()"></div>
     <div class="account-popup" id="accountPopup">
         <p><strong>Name:</strong> John Doe</p>
@@ -124,11 +185,21 @@
         <button onclick="openPasswordPopup()">Change Password</button>
     </div>
 
-    <div id="passwordPopup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+    <div id="passwordPopup">
         <h2>Change Password</h2>
-        <input type="password" id="newPassword" placeholder="Enter new password" style="display: block; margin-bottom: 10px; width: 100%; padding: 5px;">
+        <input type="password" id="newPassword" placeholder="Enter new password">
         <button onclick="changePassword()">Submit</button>
         <button onclick="closePasswordPopup()">Cancel</button>
+    </div>
+
+    <div class="invoice-popup" id="invoicePopup">
+        <h2>Invoice Details</h2>
+        <p><strong>Invoice ID:</strong> <span id="invoiceId"></span></p>
+        <p><strong>Time Slot:</strong> <span id="timeSlot"></span></p>
+        <p><strong>Amount Paid:</strong> <span id="amountPaid"></span></p>
+        <p><strong>User ID:</strong> <span id="userId"></span></p>
+        <p><strong>Description:</strong> <span id="description"></span></p>
+        <button onclick="closeInvoice()">Close</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
@@ -160,24 +231,40 @@
                 actionButtons.innerHTML = `<button class="revert" onclick="moveSlot(this, 'pending')">↩</button>`;
             }
         }
+
         function toggleAccountPopup() {
             let popup = document.getElementById('accountPopup');
             popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
         }
 
-        
-        
-    
-    </script>
-      <script>
-         function toggleAccountPopup() {
-             let popup = document.getElementById('accountPopup');
-            popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
-         }
-         function openPasswordPopup() {
-           alert('Change Password Feature Coming Soon!');
+        function openPasswordPopup() {
+            document.getElementById('passwordPopup').style.display = 'block';
+        }
+
+        function closePasswordPopup() {
+            document.getElementById('passwordPopup').style.display = 'none';
+        }
+
+        function changePassword() {
+            alert('Password change functionality coming soon!');
+            closePasswordPopup();
+        }
+
+        function showInvoice(invoiceId, timeSlot, amountPaid, userId, description) {
+            // Stop the event from bubbling up to parent elements
+            event.stopPropagation();
+            
+            document.getElementById('invoiceId').textContent = invoiceId;
+            document.getElementById('timeSlot').textContent = timeSlot;
+            document.getElementById('amountPaid').textContent = amountPaid;
+            document.getElementById('userId').textContent = userId;
+            document.getElementById('description').textContent = description;
+            document.getElementById('invoicePopup').style.display = 'block';
         }
         
+        function closeInvoice() {
+            document.getElementById('invoicePopup').style.display = 'none';
+        }
     </script>
 </body>
 </html>
