@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Ice Slot Rentals</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
+    <style>
+        body {
+            display: flex;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .main-container {
+            display: flex;
+            width: 100%;
+            gap: 20px;
+        }
+        .rental-sections {
+            display: flex;
+            flex-direction: column;
+            width: 70%;
+            gap: 20px;
+        }
+        .section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .calendar-container {
+            width: 30%;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            margin-bottom: 10px;
+        }
+        .rental-item {
+            background: #eee;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .approve, .decline, .revert {
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .approve {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .decline {
+            background-color: #D32F2F;
+            color: white;
+        }
+        .revert {
+            background-color: #FFA500;
+            color: white;
+        }
+        .account-circle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .account-popup {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="rental-sections">
+            <div class="section" id="pending">
+                <h2>Pending Rentals</h2>
+                <div class="rental-item">Ice Slot #1 - Pending <span class="action-buttons"><button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button></span></div>
+                <div class="rental-item">Ice Slot #2 - Pending <span class="action-buttons"><button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button></span></div>
+                <div class="rental-item">Ice Slot #3 - Pending <span class="action-buttons"><button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button></span></div>
+            </div>
+            <div class="section" id="accepted">
+                <h2>Accepted Rentals</h2>
+            </div>
+            <div class="section" id="declined">
+                <h2>Declined Rentals</h2>
+            </div>
+        </div>
+        <div class="calendar-container">
+            <h2>Calendar</h2>
+            <div id="calendar"></div>
+        </div>
+    </div>
+    <div class="account-circle" onclick="toggleAccountPopup()"></div>
+    <div class="account-popup" id="accountPopup">
+        <p><strong>Name:</strong> John Doe</p>
+        <p><strong>Phone Number:</strong> (123) 456-7890</p>
+        <p><strong>Email:</strong> johndoe@example.com</p>
+        <button onclick="openPasswordPopup()">Change Password</button>
+    </div>
+
+    <div id="passwordPopup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+        <h2>Change Password</h2>
+        <input type="password" id="newPassword" placeholder="Enter new password" style="display: block; margin-bottom: 10px; width: 100%; padding: 5px;">
+        <button onclick="changePassword()">Submit</button>
+        <button onclick="closePasswordPopup()">Cancel</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                validRange: {
+                    start: '2025-01-01',
+                    end: new Date(new Date().setMonth(new Date().getMonth() + 1))
+                },
+                headerToolbar: {
+                    left: 'prev,next',
+                    center: 'title',
+                    right: 'today'
+                }
+            });
+            calendar.render();
+        });
+
+        function moveSlot(button, targetSection) {
+            let rentalItem = button.closest('.rental-item');
+            document.getElementById(targetSection).appendChild(rentalItem);
+            let actionButtons = rentalItem.querySelector('.action-buttons');
+            if (targetSection === 'pending') {
+                actionButtons.innerHTML = `<button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button>`;
+            } else {
+                actionButtons.innerHTML = `<button class="revert" onclick="moveSlot(this, 'pending')">↩</button>`;
+            }
+        }
+        function toggleAccountPopup() {
+            let popup = document.getElementById('accountPopup');
+            popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+        }
+
+        
+        
+    
+    </script>
+      <script>
+         function toggleAccountPopup() {
+             let popup = document.getElementById('accountPopup');
+            popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+         }
+         function openPasswordPopup() {
+           alert('Change Password Feature Coming Soon!');
+        }
+        
+    </script>
+</body>
+</html>
