@@ -1,0 +1,466 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Ice Slot Rentals</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
+    <style>
+        body {
+            display: flex;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .main-container {
+            display: flex;
+            width: 100%;
+            gap: 20px;
+        }
+        .rental-sections {
+            display: flex;
+            flex-direction: column;
+            width: 70%;
+            gap: 20px;
+        }
+        .section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .calendar-container {
+            width: 30%;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            margin-bottom: 10px;
+        }
+        .rental-item {
+            background: #eee;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .rental-content {
+            flex-grow: 1; /* Takes remaining space */
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .approve, .decline, .revert {
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .approve {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .decline {
+            background-color: #D32F2F;
+            color: white;
+        }
+        .revert {
+            background-color: #FFA500;
+            color: white;
+        }
+        .account-circle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .account-popup {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .invoice-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .invoice-popup button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            background-color: #D32F2F;
+            color: white;
+        }
+        #passwordPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        #passwordPopup input {
+            display: block;
+            margin-bottom: 10px;
+            width: 100%;
+            padding: 5px;
+        }
+        .fc-event {
+            cursor: pointer;
+        }
+        .fc-event.available {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+        .fc-event.pending {
+            background-color: #FFA500;
+            border-color: #FFA500;
+        }
+        .fc-event.accepted {
+            background-color: #2196F3;
+            border-color: #2196F3;
+        }
+        .slot-info-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .slot-info-popup button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="rental-sections">
+            <div class="section" id="pending">
+                <h2>Pending Rentals</h2>
+                <div class="rental-item" data-id="INV123" data-date="2025-03-02" data-timeSlot="10:00 AM - 11:00 AM">
+                    <div class="rental-content" onclick="showInvoice('INV123', '10:00 AM - 11:00 AM', '3/2/2025', '$50', 'USER001', 'Figure Skating')">Ice Slot #1 - Pending</div>
+                    <span class="action-buttons">
+                        <button class="approve" onclick="moveSlot(this, 'accepted')">✔</button>
+                        <button class="decline" onclick="moveSlot(this, 'declined')">✖</button>
+                    </span>
+                </div>
+                <div class="rental-item" data-id="INV124" data-date="2025-03-15" data-timeSlot="11:00 AM - 12:00 PM">
+                    <div class="rental-content" onclick="showInvoice('INV124', '11:00 AM - 12:00 PM', '3/15/2025', '$60', 'USER002', 'Hockey Game')">Ice Slot #2 - Pending</div>
+                    <span class="action-buttons">
+                        <button class="approve" onclick="moveSlot(this, 'accepted')">✔</button>
+                        <button class="decline" onclick="moveSlot(this, 'declined')">✖</button>
+                    </span>
+                </div>
+                <div class="rental-item" data-id="INV125" data-date="2025-03-10" data-timeSlot="12:00 PM - 1:00 PM">
+                    <div class="rental-content" onclick="showInvoice('INV125', '12:00 PM - 1:00 PM', '3/10/2025', '$45', 'USER003', 'Training Session')">Ice Slot #3 - Pending</div>
+                    <span class="action-buttons">
+                        <button class="approve" onclick="moveSlot(this, 'accepted')">✔</button>
+                        <button class="decline" onclick="moveSlot(this, 'declined')">✖</button>
+                    </span>
+                </div>
+            </div>
+            <div class="section" id="accepted">
+                <h2>Accepted Rentals</h2>
+            </div>
+            <div class="section" id="declined">
+                <h2>Declined Rentals</h2>
+            </div>
+        </div>
+        <div class="calendar-container">
+            <h2>Calendar</h2>
+            <div id="calendar"></div>
+        </div>
+    </div>
+    
+    <div class="account-circle" onclick="toggleAccountPopup()"></div>
+    <div class="account-popup" id="accountPopup">
+        <p><strong>Name:</strong> John Doe</p>
+        <p><strong>Phone Number:</strong> (123) 456-7890</p>
+        <p><strong>Email:</strong> johndoe@example.com</p>
+        <button onclick="openPasswordPopup()">Change Password</button>
+    </div>
+
+    <div id="passwordPopup">
+        <h2>Change Password</h2>
+        <input type="password" id="oldPassword" placeholder="Enter current password">
+        <input type="password" id="newPassword" placeholder="Enter new password">
+        <input type="password" id="confirmPassword" placeholder="Confirm new password">
+        <button onclick="changePassword()">Submit</button>
+        <button onclick="closePasswordPopup()">Cancel</button>
+    </div>
+
+    <div class="invoice-popup" id="invoicePopup">
+        <h2>Invoice Details</h2>
+        <p><strong>Invoice ID:</strong> <span id="invoiceId"></span></p>
+        <p><strong>Time Slot:</strong> <span id="timeSlot"></span></p>
+        <p><strong>Date:</strong> <span id="date"></span></p>
+        <p><strong>Amount Paid:</strong> <span id="amountPaid"></span></p>
+        <p><strong>User ID:</strong> <span id="userId"></span></p>
+        <p><strong>Description:</strong> <span id="description"></span></p>
+        <button onclick="closeInvoice()">Close</button>
+    </div>
+
+    <div class="slot-info-popup" id="slotInfoPopup">
+        <h2>Available Ice Slot</h2>
+        <p><strong>Date:</strong> <span id="availableDate"></span></p>
+        <p><strong>Time Slot:</strong> <span id="availableTimeSlot"></span></p>
+        <p><strong>Duration:</strong> <span id="slotDuration">1 hour</span></p>
+        <button onclick="closeSlotInfo()">Close</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+    <script>
+        let calendar;
+
+        // Create calendar events from rental items
+        function getCalendarEvents() {
+            const events = [];
+            
+            // Add pending rentals
+            document.querySelectorAll('#pending .rental-item').forEach(item => {
+                events.push({
+                    id: item.dataset.id,
+                    title: 'Pending: ' + item.querySelector('.rental-content').textContent,
+                    start: item.dataset.date,
+                    className: 'pending',
+                    extendedProps: {
+                        timeSlot: item.dataset.timeSlot,
+                        status: 'pending'
+                    }
+                });
+            });
+            
+            // Add accepted rentals
+            document.querySelectorAll('#accepted .rental-item').forEach(item => {
+                events.push({
+                    id: item.dataset.id,
+                    title: 'Accepted: ' + item.querySelector('.rental-content').textContent,
+                    start: item.dataset.date,
+                    className: 'accepted',
+                    extendedProps: {
+                        timeSlot: item.dataset.timeSlot,
+                        status: 'accepted'
+                    }
+                });
+            });
+            
+            // Add available slots
+            events.push({
+                id: 'avail1',
+                title: 'Available: 2:00 PM - 3:00 PM',
+                start: '2025-03-05',
+                className: 'available',
+                extendedProps: {
+                    timeSlot: '2:00 PM - 3:00 PM',
+                    status: 'available'
+                }
+            });
+            
+            events.push({
+                id: 'avail2',
+                title: 'Available: 4:00 PM - 5:00 PM',
+                start: '2025-03-12',
+                className: 'available',
+                extendedProps: {
+                    timeSlot: '4:00 PM - 5:00 PM',
+                    status: 'available'
+                }
+            });
+            
+            events.push({
+                id: 'avail3',
+                title: 'Available: 9:00 AM - 10:00 AM',
+                start: '2025-03-20',
+                className: 'available',
+                extendedProps: {
+                    timeSlot: '9:00 AM - 10:00 AM',
+                    status: 'available'
+                }
+            });
+            
+            return events;
+        }
+
+        // Display information about an available slot
+        function showSlotInfo(event) {
+            const date = new Date(event.start);
+            const formattedDate = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+            
+            document.getElementById('availableDate').textContent = formattedDate;
+            document.getElementById('availableTimeSlot').textContent = event.extendedProps.timeSlot;
+            document.getElementById('slotInfoPopup').style.display = 'block';
+        }
+        
+        function closeSlotInfo() {
+            document.getElementById('slotInfoPopup').style.display = 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                validRange: {
+                    start: '2025-01-01',
+                    end: new Date(new Date().setMonth(new Date().getMonth() + 3))
+                },
+                headerToolbar: {
+                    left: 'prev,next',
+                    center: 'title',
+                    right: 'today'
+                },
+                events: getCalendarEvents(),
+                eventClick: function(info) {
+                    // If it's an available slot, just show information
+                    if (info.event.extendedProps.status === 'available') {
+                        showSlotInfo(info.event);
+                    } else {
+                        // Show rental details
+                        const rentalItem = document.querySelector(`.rental-item[data-id="${info.event.id}"]`);
+                        if (rentalItem) {
+                            rentalItem.querySelector('.rental-content').click();
+                        }
+                    }
+                }
+            });
+            calendar.render();
+        });
+
+        function moveSlot(button, targetSection) {
+            let rentalItem = button.closest('.rental-item');
+            const rentalId = rentalItem.dataset.id;
+            const rentalDate = rentalItem.dataset.date;
+            const rentalTimeSlot = rentalItem.dataset.timeSlot;
+            const rentalContent = rentalItem.querySelector('.rental-content').textContent;
+            
+            // Move the rental item to the target section
+            document.getElementById(targetSection).appendChild(rentalItem);
+            
+            // Change the action buttons
+            let actionButtons = rentalItem.querySelector('.action-buttons');
+            if (targetSection === 'pending') {
+                actionButtons.innerHTML = `<button class="approve" onclick="moveSlot(this, 'accepted')">✔</button><button class="decline" onclick="moveSlot(this, 'declined')">✖</button>`;
+            } else {
+                actionButtons.innerHTML = `<button class="revert" onclick="moveSlot(this, 'pending')">↩</button>`;
+            }
+            
+            // Always remove the existing event first
+            const existingEvent = calendar.getEventById(rentalId);
+            if (existingEvent) {
+                existingEvent.remove();
+            }
+            
+            // Add event back to calendar if it's not declined
+            if (targetSection !== 'declined') {
+                calendar.addEvent({
+                    id: rentalId,
+                    title: (targetSection === 'accepted' ? 'Accepted: ' : 'Pending: ') + rentalContent,
+                    start: rentalDate,
+                    className: targetSection,
+                    extendedProps: {
+                        timeSlot: rentalTimeSlot,
+                        status: targetSection
+                    }
+                });
+            }
+        }
+
+        function toggleAccountPopup() {
+            let popup = document.getElementById('accountPopup');
+            popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function openPasswordPopup() {
+            document.getElementById('passwordPopup').style.display = 'block';
+        }
+
+        function closePasswordPopup() {
+            document.getElementById('passwordPopup').style.display = 'none';
+        }
+
+        function changePassword() {
+            let oldPassword = document.getElementById('oldPassword').value;
+            let newPassword = document.getElementById('newPassword').value;
+            let confirmPassword = document.getElementById('confirmPassword').value;
+    
+            if (!oldPassword) {
+                alert('Please enter your current password');
+                return;
+            }
+    
+            if (!newPassword) {
+                alert('Please enter a new password');
+                return;
+            }
+    
+            if (newPassword !== confirmPassword) {
+                alert('New passwords do not match');
+                return;
+            }
+    
+             // Here you would typically send this to your server
+            alert('Password changed successfully!');
+            closePasswordPopup();
+        }
+
+        function showInvoice(invoiceId, timeSlot, date, amountPaid, userId, description) {
+            // Stop the event from bubbling up to parent elements
+            event.stopPropagation();
+            
+            document.getElementById('invoiceId').textContent = invoiceId;
+            document.getElementById('timeSlot').textContent = timeSlot;
+            document.getElementById('date').textContent = date;
+            document.getElementById('amountPaid').textContent = amountPaid;
+            document.getElementById('userId').textContent = userId;
+            document.getElementById('description').textContent = description;
+            document.getElementById('invoicePopup').style.display = 'block';
+        }
+        
+        function closeInvoice() {
+            document.getElementById('invoicePopup').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
