@@ -185,12 +185,14 @@
         <button onclick="openPasswordPopup()">Change Password</button>
     </div>
 
-    <div id="passwordPopup">
-        <h2>Change Password</h2>
-        <input type="password" id="newPassword" placeholder="Enter new password">
-        <button onclick="changePassword()">Submit</button>
-        <button onclick="closePasswordPopup()">Cancel</button>
-    </div>
+  <div id="passwordPopup">
+    <h2>Change Password</h2>
+    <input type="password" id="oldPassword" placeholder="Enter current password">
+    <input type="password" id="newPassword" placeholder="Enter new password">
+    <input type="password" id="confirmPassword" placeholder="Confirm new password">
+    <button onclick="changePassword()">Submit</button>
+    <button onclick="closePasswordPopup()">Cancel</button>
+</div>
 
     <div class="invoice-popup" id="invoicePopup">
         <h2>Invoice Details</h2>
@@ -264,6 +266,30 @@
         
         function closeInvoice() {
             document.getElementById('invoicePopup').style.display = 'none';
+        }
+        function changePassword() {
+            let oldPassword = document.getElementById('oldPassword').value;
+            let newPassword = document.getElementById('newPassword').value;
+            let confirmPassword = document.getElementById('confirmPassword').value;
+    
+            if (!oldPassword) {
+                alert('Please enter your current password');
+                return;
+            }
+    
+            if (!newPassword) {
+                alert('Please enter a new password');
+                return;
+            }
+    
+            if (newPassword !== confirmPassword) {
+                alert('New passwords do not match');
+                return;
+            }
+    
+             // Here you would typically send this to your server
+            alert('Password changed successfully!');
+            closePasswordPopup();
         }
     </script>
 </body>
