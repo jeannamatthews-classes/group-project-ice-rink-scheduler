@@ -1,0 +1,3 @@
+2025 Mar 13  60 minutes  Did Ui Sketches for the Website
+2025 Mar 16  15 minutes  Created planning and timelog directories
+2025 Matr 20  60 minutes  Coded the home page user interface
