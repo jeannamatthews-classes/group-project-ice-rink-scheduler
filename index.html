@@ -5,181 +5,20 @@
      <meta name="viewport" content="width=device-width, initial-scale=1.0">
      <title>Ice Rink Slot Booking</title>
      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
-     <style>
-         @font-face {
-             font-family: 'Futura';
-             src: url('https://fonts.cdnfonts.com/s/23277/FuturaBT-Light.woff') format('woff');
-             font-weight: normal;
-             font-style: normal;
-         }
-         body {
-             font-family: 'Futura', sans-serif;
-         }
-         #calendar {
-             max-width: 900px;
-             margin: 40px auto;
-         }
-         #slots {
-             margin-top: 20px;
-             text-align: center;
-         }
-         .fc-daygrid-day-number {
-             font-size: 14px;
-             font-weight: bold;
-             color: #2C3E50;
-         }
-         .fc-daygrid-day-month {
-             font-size: 14px;
-             font-weight: bold;
-             color: #444;
-         }
-         .fc-daygrid-day {
-             background-color: #FFFFFF;
-         }
-         .fc-day-past, .fc-day-disabled {
-             background-color: #F5F5F5;
-             pointer-events: none;
-         }
-         .fc-day-today {
-             background-color: #E8F5E9;
-         }
-         .fc-daygrid-day-top {
-             display: flex;
-             flex-direction: column;
-             align-items: center;
-             justify-content: center;
-         }
-         /* Green buttons for navigation */
-         .fc-button {
-             background-color: #4CAF50 !important;
-             color: white !important;
-             border: none !important;
-             padding: 8px 12px !important;
-             font-size: 14px !important;
-             font-family: 'Futura', sans-serif !important;
-             border-radius: 5px !important;
-         }
-         .fc-button:hover {
-             background-color: #45a049 !important;
-         }
-         /* Green button styling */
-         button {
-             background-color: #4CAF50;
-             color: white;
-             border: none;
-             padding: 10px 15px;
-             font-size: 16px;
-             font-family: 'Futura', sans-serif;
-             cursor: pointer;
-             border-radius: 5px;
-         }
-         button:hover {
-             background-color: #45a049;
-         }
-         /* Modern dropdown styling */
-         select {
-             width: 250px;
-             padding: 10px;
-             font-size: 16px;
-             font-family: 'Futura', sans-serif;
-             border: 1px solid #4CAF50;
-             border-radius: 5px;
-             background-color: #E8F5E9;
-             color: #2C3E50;
-         }
-         select:focus {
-             outline: none;
-             border-color: #45a049;
-         }
-     </style>
+     <link rel="stylesheet" href="css/style.css">
  </head>
+ 
  <body>
-     <div id="calendar"></div>
-     <div id="slots"></div>
- 
-     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
-     <script>
-         document.addEventListener('DOMContentLoaded', function() {
-             var calendarEl = document.getElementById('calendar');
-             var slotsEl = document.getElementById('slots');
- 
-             var calendar = new FullCalendar.Calendar(calendarEl, {
-                 initialView: 'dayGridMonth',
-                 validRange: {
-                     start: '2025-01-01',
-                     end: new Date(new Date().setMonth(new Date().getMonth() + 1))
-                 },
-                 dateClick: function(info) {
-                     var date = info.dateStr;
-                     if (info.date < new Date()) {
-                         alert("Cannot select past dates.");
-                         return;
-                     }
-                     displayAvailableSlots(date);
-                 },
-                 headerToolbar: {
-                     left: 'prev,next',
-                     center: 'title',
- 		    right:'today'
-                 },
-                 dayCellContent: function(info) {
-                     var date = info.date;
-                     var dayNumber = date.getDate();
-                     var monthName = date.toLocaleString('default', { month: 'short' });
- 
-                     var dayContent = document.createElement('div');
-                     dayContent.className = 'fc-daygrid-day-top';
-                     dayContent.innerHTML = `
-                         <div class="fc-daygrid-day-number">${dayNumber}</div>
-                         <div class="fc-daygrid-day-month">${monthName}</div>
-                     `;
- 
-                     return { domNodes: [dayContent] };
-                 },
-                 selectable: true,
-                 selectMirror: true,
-                 select: function(info) {
-                     var date = info.startStr;
-                     if (info.start < new Date()) {
-                         alert("Cannot select past dates.");
-                         return;
-                     }
-                     displayAvailableSlots(date);
-                 }
-             });
- 
-             calendar.render();
- 
-             function displayAvailableSlots(date) {
-                 var slots = generateSlots();
-                 slotsEl.innerHTML = `<h3>Available Slots for ${date}</h3>`;
-                 slotsEl.innerHTML += `
-                     <select id="slotSelect">
-                         ${slots.map(slot => `<option value="${slot}">${slot}</option>`).join('')}
-                     </select>
-                     <br><br>
-                     <button onclick="bookSlot()">Book Selected Slot</button>
-                 `;
-             }
- 
-             function generateSlots() {
-                 var slots = [];
-                 for (var i = 9; i < 17; i++) {
-                     slots.push(`${i}:00 - ${i + 1}:00`);
-                 }
-                 return slots;
-             }
- 
-             window.bookSlot = function() {
-                 var selectedSlot = document.getElementById('slotSelect').value;
-                 if (selectedSlot) {
-                     alert('Booked slot: ' + selectedSlot);
-                 } else {
-                     alert('No slot selected.');
-                 }
-             };
-         });
-     </script>
+    <header>
+        <ul>
+            <li><a href="#" class="active">Index</a></li>
+            <li><a href="Updated_admin_view.html">Admin View</a></li>
+            <li><a href="signup.html">Sign Up</a></li>
+            <li><a href="home page.html">Home Page</a></li>
+            <li><a href="bookingcalendar_multiple_slots.html">Booking slots</a></li>
+            <li><a href="user_view.html">User view</a></li>
+        </ul>
+    </header>
  </body>
  </html>
  

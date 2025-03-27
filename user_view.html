@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Booking History</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
+</head>
+
+<body>
+    <header>
+        <a href="#" class="logo">Ice Rink Scheduler</a>
+        <ul>
+            <li><a href="home page.html">Home Page</a></li>
+            <li><a href="signup.html">Sign Up</a></li>
+        </ul>
+    </header>
+
+    <div class="main-container">
+        <div class="events-list">
+            <h2>My Bookings</h2>
+            <div class="event-item">Booking 1: March 2, 2025 - 10:00 AM - 11:00 AM</div>
+            <div class="event-item">Booking 2: March 15, 2025 - 11:00 AM - 12:00 PM</div>
+            <div class="event-item">Booking 3: March 10, 2025 - 12:00 PM - 1:00 PM</div>
+        </div>
+
+        <div class="calendar-container">
+            <h2>Booking Calendar</h2>
+            <div id="calendar"></div>
+        </div>
+
+        <div class="account-circle" onclick="toggleAccountPopup()"></div>
+        <div class="account-popup" id="accountPopup">
+            <p><strong>Name:</strong> John Doe</p>
+            <p><strong>Phone Number:</strong> (123) 456-7890</p>
+            <p><strong>Email:</strong> johndoe@example.com</p>
+            <button onclick="openPasswordPopup()">Change Password</button>
+        </div>
+    
+        <div id="passwordPopup">
+            <h2>Change Password</h2>
+            <input type="password" id="oldPassword" placeholder="Enter current password">
+            <input type="password" id="newPassword" placeholder="Enter new password">
+            <input type="password" id="confirmPassword" placeholder="Confirm new password">
+            <button onclick="changePassword()">Submit</button>
+            <button onclick="closePasswordPopup()">Cancel</button>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+    <script src="java/user_view.js"></script>
+
+</body>
+</html>
+
