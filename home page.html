@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+<link rel="preload" href="https://raw.githubusercontent.com/jeannamatthews-classes/group-project-ice-rink-scheduler/3a66f5ee51bb93c24e0c16ac68f886048daefaa6/skate.png" as="image">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,44 @@
     <!-- Include FullCalendar CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
     <style>
+	
+	    body {
+            cursor: none; /* Hide default cursor */
+            margin: 0;
+            height: 100vh;
+            overflow: hidden; /* Optional: prevents scrollbars */
+        }
+        
+        .custom-cursor {
+            position: fixed;
+            width: 84px;  
+            height: 84px;
+            pointer-events: none;
+            z-index: 9999;
+            background-image: url('https://github.com/jeannamatthews-classes/group-project-ice-rink-scheduler/blob/main/skate.png?raw=true');
+            background-size: contain;
+            background-repeat: no-repeat;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+	button {
+    	cursor: none !important; /* Override the default cursor */
+	}
+	input, a, #resetPassword {
+    	cursor: none !important; /* Also apply to links and inputs if needed */
+	}
+	.fc * {
+    	cursor: none !important;
+	}
+	.close, 
+	.modal-content button {
+    	cursor: none !important;
+	}
+
+	/* Add a class for the rotated cursor state */
+	.custom-cursor-button {
+    	transform: translate(-50%, -50%) rotate(45deg) !important; /* Rotate by 45 degrees when over buttons */
+	}
         /* Custom font for the page */
         @font-face {
             font-family: 'Futura';
@@ -28,18 +67,18 @@
 
         /* Calendar container styling */
         #calendar {
-            width: 700px; /* Larger calendar */
-            background-color: #FFFFFF; /* White background */
-            border: 4px solid #00b7eb; /* Blue border */
-            border-radius: 10px;
-            padding: 10px;
-            margin-right: 20px;
-        }
+    	width: 700px; /* Larger calendar */
+    	background-color: #FFFFFF; /* White background */
+    	padding: 10px;
+    	margin-right: 20px;
+    	box-shadow: 0px 4px 8px rgba(0, 255, 0, 0.2); /* Add shadow */
+	border-radius: 15px; /* Rounded corners */
+	}
 
         /* Updated heading styling with lime green color */
         #heading {
     	text-align: center;
-    	color: #00ff7f; /* Lime green color */
+    	color: #00ff00; /* green color */
     	font-size: 40px; /* Slightly larger */
     	font-weight: bold; /* Make it bold */
     	margin-top: 50px;
@@ -48,6 +87,10 @@
     	text-transform: uppercase; /* Make it look more like a logo */
     	letter-spacing: 1px; /* Add some letter spacing */
     	font-family: 'Courier New', sans-serif; /* Clean and modern font */
+	}	
+
+	.highlight {
+ 	 color: #0066ff; /* color for "Ice Rink Scheduling" */
 	}
 
         /* Login grid container styling */
@@ -81,7 +124,7 @@
             width: 50%;
             padding: 10px;
             margin: 10px 0;
-            background-color: #00b7eb; /* Blue background */
+            background-color: #00ff00; /* Green background */
             color: white; /* White text */
             border: none;
             border-radius: 5px;
@@ -91,12 +134,12 @@
 
         /* Hover effect for buttons */
         #loginGrid button:hover {
-            background-color: #0055AA; /* Darker blue on hover */
+            background-color: #00ff00; /* green on hover */
         }
 
         /* Create New Account button styling */
         #createAccount {
-            background-color: #0066CC; /* More saturated blue */
+            background-color: #00ff00; /* green */
         }
 
         /* Reset Password link styling as hyperlink */
@@ -165,7 +208,7 @@
         }
 
         .fc-button {
-            background-color: #00b7eb !important;
+            background-color: #66ff33 !important;
             color: white !important;
             border: none !important;
             padding: 8px 12px !important;
@@ -175,7 +218,7 @@
         }
 
         .fc-button:hover {
-            background-color: #0055AA !important;
+            background-color: #66ff33 !important;
         }
 
         button {
@@ -278,7 +321,7 @@
         }
 
         .fc-bookButton-button {
-            background-color: #0000ff !important;
+            background-color: #00ff00 !important;
             color: white !important;
             border: none !important;
             padding: 8px 12px !important;
@@ -289,7 +332,7 @@
         }
 
         .fc-bookButton-button:hover {
-            background-color: #0000cd !important;
+            background-color: #00ff00 !important;
         }
 
         .quantity-input {
@@ -316,13 +359,84 @@
     </style>
 </head>
 <body>
+    <div class="custom-cursor" id="customCursor"></div>
+    
+    <script>
+
+	document.addEventListener('DOMContentLoaded', function() {
+    const cursor = document.getElementById('customCursor');
+    cursor.style.display = 'block';
+    
+    let isOverClickable = false;
+    
+    // Update position and check element under cursor
+    document.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+        
+        // Check if cursor is over a clickable element
+        const elementUnderCursor = document.elementFromPoint(e.clientX, e.clientY);
+        
+        // Check if it's a button/link OR a calendar cell OR the close button
+        isOverClickable = elementUnderCursor && (
+            // Standard clickable elements
+            elementUnderCursor.tagName === 'BUTTON' || 
+            elementUnderCursor.tagName === 'A' || 
+            elementUnderCursor.id === 'resetPassword' ||
+            elementUnderCursor.tagName === 'INPUT' ||
+            
+            // Calendar-specific elements
+            elementUnderCursor.classList.contains('fc-daygrid-day') ||
+            elementUnderCursor.closest('.fc-daygrid-day') ||
+            elementUnderCursor.classList.contains('fc-day') ||
+            elementUnderCursor.closest('.fc-day') ||
+            elementUnderCursor.classList.contains('fc-event') ||
+            elementUnderCursor.closest('.fc-event') ||
+            elementUnderCursor.classList.contains('fc-button') ||
+            elementUnderCursor.closest('.fc-button') ||
+            
+            // Modal close button
+            elementUnderCursor.classList.contains('close') ||
+            elementUnderCursor.closest('.close')
+        );
+        
+        // Update cursor appearance
+        updateCursorAppearance();
+    });
+    
+    // Handle cursor appearance during clicks
+    document.addEventListener('mousedown', () => {
+        if (isOverClickable) {
+            cursor.style.transform = 'translate(-50%, -50%) rotate(45deg) scale(0.9)';
+        } else {
+            cursor.style.transform = 'translate(-50%, -50%) scale(0.9)';
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        updateCursorAppearance();
+    });
+    
+    // Function to update cursor appearance based on hover state
+    function updateCursorAppearance() {
+        if (isOverClickable) {
+            cursor.style.transform = 'translate(-50%, -50%) rotate(45deg)';
+        } else {
+            cursor.style.transform = 'translate(-50%, -50%)';
+        }
+    }
+});	
+
+    </script>
     <!-- Calendar container -->
     <div id="calendar"></div>
-
+	
     <!-- Right side container -->
     <div>
         <!-- Heading -->
-        <div id="heading">Clarkson Ice Rink Scheduling</div>
+        <div id="heading">
+  	Clarkson <span class="highlight">Ice Rink Scheduling</span>
+	</div>
 
         <!-- Login grid container -->
         <div id="loginGrid">
@@ -334,16 +448,15 @@
             <button id="createAccount">Create New Account</button>
         </div>
     </div>
+    <div id="resetPasswordModal" class="reset-password-modal" style="display:none;">
+    	<div class="reset-password-modal-content">
+        	<span class="reset-password-close">&times;</span>
+        	<h3>Reset Your Password</h3>
+        	<input type="email" id="resetPasswordEmail" class="reset-password-input" placeholder="Enter your email" />
+        	<button class="reset-password-button" id="resetPasswordSubmit">Submit</button>
+    	</div>
+	</div>
 
-	<div id="resetPasswordModal" class="reset-password-modal" style="display:none;">
-    <div class="reset-password-modal-content">
-        <span class="reset-password-close">&times;</span>
-        <h3>Reset Your Password</h3>
-        <input type="email" id="resetPasswordEmail" class="reset-password-input" placeholder="Enter your email" />
-        <button class="reset-password-button" id="resetPasswordSubmit">Submit</button>
-    </div>
-</div>
-	
     <!-- Slot display container -->
     <div id="slots"></div>
 
