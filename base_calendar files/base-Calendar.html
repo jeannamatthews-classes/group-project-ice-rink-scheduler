@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ice Rink Rental Calendar</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .current-month {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+        }
+        .day {
+            border: 1px solid #ddd;
+            padding: 10px;
+            min-height: 100px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .day-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .rental {
+            background-color: #f0f0f0;
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .day.expanded {
+            grid-column: span 7;
+            grid-row: auto;
+            max-height: none;
+            overflow: visible;
+        }
+        .rental.accepted {
+            background-color: #28a745;  /* Green for accepted */
+            color: white;
+        }
+       
+        .day-names > div {
+            font-weight: bold;
+            text-align: center;
+            padding: 10px 0;
+        }
+      
+    </style>
+</head>
+<body>
+    
+    <div class="calendar-header">
+        <button id="prevMonth">◀ Previous</button>
+        <div class="current-month" id="monthDisplay"></div>
+        <button id="nextMonth">Next ▶</button>
+    </div>
+    <div id="calendar" class="calendar"></div>
+   
+    <script src="sample_events_database.js"></script>
+    <script src="base-Calendar.js"></script>
+</body>
+</html>
