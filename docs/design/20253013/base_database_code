@@ -1,0 +1,55 @@
+CREATE TABLE renter (
+  user_id SERIAL PRIMARY KEY,
+  first_name VARCHAR(50) NOT NULL,
+  last_name VARCHAR(50) NOT NULL,
+  renter_email VARCHAR(100) NOT NULL UNIQUE,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL, -- Store hashed passwords
+  phone VARCHAR(15)
+);
+
+CREATE TABLE rental_request (
+  request_id SERIAL PRIMARY KEY,
+  request_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  rental_status VARCHAR(10) NOT NULL CHECK (rental_status IN ('pending', 'approved', 'denied')),
+  additional_desc TEXT,
+  rental_name VARCHAR(100) NOT NULL,
+  is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
+  recurrence_rule VARCHAR(50), -- Example: 'weekly', 'monthly'
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  user_id INT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES renter(user_id)
+);
+
+CREATE TABLE rental (
+  rental_id SERIAL PRIMARY KEY,
+  booked_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  payment_status VARCHAR(10) NOT NULL CHECK (payment_status IN ('paid', 'pending', 'canceled')),
+  rental_cost DECIMAL(10,2) NOT NULL,
+  user_id INT NOT NULL,
+  request_id INT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES renter(user_id),
+  FOREIGN KEY (request_id) REFERENCES rental_request(request_id)
+);
+
+CREATE TABLE admin (
+  admin_id SERIAL PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  first_name VARCHAR(50) NOT NULL,
+  last_name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE admin_event (
+  event_id SERIAL PRIMARY KEY,
+  event_name VARCHAR(100) NOT NULL,
+  additional_desc TEXT,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  event_date DATE NOT NULL,
+  is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
+  recurrence_rule VARCHAR(50),
+  admin_id INT NOT NULL,
+  FOREIGN KEY (admin_id) REFERENCES admin(admin_id)
+);
