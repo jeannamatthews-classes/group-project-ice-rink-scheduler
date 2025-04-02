@@ -4,3 +4,4 @@
 2025 March 27, 60 min, group meeting with Logan, asked him questions and then we as a team talked about our next steps
 2025 March 27, 120 min, messing with the admin page, did not manage to get anywhere but decided some UI changes needed to be made
 2025 March 31, 120, trying to implement admin page and fought with it for forever just to realize that what I was implementing could not be implemented until we had our backend database complete full of user info and ice info
+2025 April 1, 180, redoing the erd diagram along with the relational schema and creating the base database model code, all located in design doc. 60 min of it was a meeting with my team
