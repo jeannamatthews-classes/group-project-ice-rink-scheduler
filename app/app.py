@@ -12,11 +12,10 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
 app = Flask(__name__)
 
 # Database configuration
-INSTANCE_CONNECTION_NAME = os.environ.get("INSTANCE_CONNECTION_NAME", "quixotic-bonito-455201-s5:us-central1:clarkson-ice-rink")
-DB_USER = os.environ.get("DB_USER", "read_only")
-DB_PASS = os.environ.get("DB_PASS", "logannorris")
-DB_NAME = os.environ.get("DB_NAME", "postgres")
-
+INSTANCE_CONNECTION_NAME = os.environ["INSTANCE_CONNECTION_NAME"]
+DB_USER = os.environ["DB_USER"]
+DB_PASS = os.environ["DB_PASS"]
+DB_NAME = os.environ["DB_NAME"]
 # Initialize the connector
 connector = Connector()
 
