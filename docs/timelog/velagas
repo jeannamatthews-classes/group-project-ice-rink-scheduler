@@ -5,3 +5,4 @@
 2025 Mar 27  75 minutes  Meeting with logan and meeting with team after that
 2025 Apr 3   60 minutes  Made some UI, Database improvements
 2025 Apr 4   60 minutes  Figuring out cloud and making backend postgres db on google cloud mysql with appropriate amount of resources
+2025 Apr 6   120 minutes  Implemented cloud database and connected python flask backend to it, Made to improvements to UI to work with the calendar
