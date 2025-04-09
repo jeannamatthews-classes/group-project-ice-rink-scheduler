@@ -5,6 +5,9 @@ import os
 from datetime import datetime, timedelta
 import pg8000
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Set credentials for Google Cloud SQL
 credential_path = "cloud.json"
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
