@@ -2,111 +2,149 @@
 <html lang="en">
 
 <head>
-    <meta charset=" " UTF-8">
+    <meta charset="UTF-8">
     <meta name="author" content="Natalie Wesseldine">
-    <meta name="description" contents="This page sings people up">
-    <title> Sign Up </title>
-     <style>
+    <meta name="description" content="This page signs people up">
+    <title>Sign Up</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <style>
         body {
-    background-color: #6d8770;
-    font-family:'Times New Roman', Times, serif;
-    color: whitesmoke;
-}
+            background-color: #6d8770;
+            font-family: 'Times New Roman', Times, serif;
+            color: whitesmoke;
+        }
 
-.container {
-    width: 360px;
-    height:700px;
-    margin: auto;
-    background-color: rgb(5, 63, 5);
-    border-radius: 50px;
+        .container {
+            width: 360px;
+            margin: auto;
+            background-color: rgb(5, 63, 5);
+            border-radius: 50px;
+            padding: 20px;
+        }
 
-}
+        h1, h4 {
+            text-align: center;
+        }
 
-h1 {
-    text-align: center;
-    padding-top: 15px;    
-}
-h4 {
-    text-align: center;
-}
-form{
-    width: 300px;
-    margin-left: 20px;
-}
+        form {
+            width: 300px;
+            margin-left: 20px;
+        }
 
-form label{
-    display:flex;
-    margin-top: 20px;
-    font-size: 18px;
-}
+        form label {
+            display: flex;
+            margin-top: 20px;
+            font-size: 18px;
+        }
 
-form input{
-    width: 100%;
-    padding: 7px;
-    border: none;
-    border: 1px solid gray;
-    border-radius: 6px;
-    outline: none;
-}
+        form input {
+            width: 100%;
+            padding: 7px;
+            border: 1px solid gray;
+            border-radius: 6px;
+            outline: none;
+        }
 
-button{
-    width: 320px;
-    height: 35px;
-    margin-top: 20px;
-    border: none;
-    background-color: rgb(150, 228, 164);
-    font-size: 18px;
-    font-family: 'Times New Roman', Times, serif;
-}
+        button {
+            width: 320px;
+            height: 35px;
+            margin-top: 20px;
+            border: none;
+            background-color: rgb(150, 228, 164);
+            font-size: 18px;
+            font-family: 'Times New Roman', Times, serif;
+            cursor: pointer;
+        }
 
-     </style>
+        #message {
+            margin-top: 10px;
+            font-size: 14px;
+            color: yellow;
+        }
 
+        #result {
+            margin-top: 15px;
+            color: lightgreen;
+            word-break: break-word;
+            font-size: 12px;
+        }
+
+        .hint-popup {
+            position: absolute;
+            background-color: #222;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .hint-popup.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #strength-meter {
+            margin-top: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .weak {
+            color: red;
+        }
+
+        .medium {
+            color: orange;
+        }
+
+        .strong {
+            color: limegreen;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container">
-        <h1> Sign Up </h1>
-        <h4>Please fill out form to create an account </h4>
+        <h1>Sign Up</h1>
+        <h4>Please fill out the form to create an account</h4>
         <hr>
-        <form>
-            <p>
-               <label for="name"> <b>Name:</b> </label>
-                <br>
-                <input type="text" name="name" id="name" placeholder="Jane Doe" required>
-                <br>
-                <label for="email"> <b>Email:</b> </label>
-                <br>
-                <input type="text" name="email" id="email" placeholder="janedoe@gmail.com" required>
-                <br>
-                <label for="phone-number"> <b>Phone Number: </b> </label>
-                <br>
-                <input type = "text" name="phone-number" id="phone-number" placeholder="123-456-7890" required>
-                <br>
-                <label for="password"> <b>Password:</b> </label>
-                <br>
-                <input type="text" name="password" id="password" placeholder="And392uJl1" required>
-                <br>
-                <label for="repeat-password"> <b>Repeat Password: </b> </label>
-                <br>
-                <input type="text" name="repeat-password" id="repeat-password" placeholder="And392uJl1" required>
-                <p id = "message"> Password must be at least 8 characters long </p>
-                <button onclick="checkPassword()"> Submit</button>
+        <form id="signup-form">
+            <label for="name"><b>Name:</b></label>
+            <input type="text" name="name" id="name" placeholder="Jane Doe" required>
+
+            <label for="email"><b>Email:</b></label>
+            <input type="email" name="email" id="email" placeholder="janedoe@gmail.com" required>
+
+            <label for="phone-number"><b>Phone Number:</b></label>
+            <input type="text" name="phone-number" id="phone-number" placeholder="123-456-7890" required>
+
+            <label for="password"><b>Password:</b></label>
+            <input type="password" name="password" id="password" placeholder="••••••••" required>
+            <div id="strength-meter"></div>
+
+            <label for="repeat-password"><b>Repeat Password:</b></label>
+            <input type="password" name="repeat-password" id="repeat-password" placeholder="••••••••" required>
+
+            <p id="message">Password must be at least 8 characters and match.</p>
+
+            <button type="submit">Submit</button>
         </form>
 
-        </p>
+        <div id="result"></div>
     </div>
 
+    <!-- Password Hint Tooltip -->
+    <div id="password-hint" class="hint-popup">
+        Password must be at least 8 characters.
+    </div>
 
-
-
-
+    <script src="java/signupscript.js"></script>
 </body>
 
-
-
-
-
-
-
-
 </html>
+
