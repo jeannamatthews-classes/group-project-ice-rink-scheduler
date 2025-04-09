@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,60 +37,45 @@
             font-weight: bold;
             margin-bottom: 10px;
         }
-        .rental {
-            background-color: #f0f0f0;
-            margin-bottom: 5px;
-            padding: 5px;
-            border-radius: 4px;
-        }
         .day.expanded {
             grid-column: span 7;
             grid-row: auto;
             max-height: none;
             overflow: visible;
         }
-        .rental.accepted {
-            background-color: #28a745;  /* Green for accepted */
-            color: white;
-        }
         .day-names > div {
             font-weight: bold;
             text-align: center;
             padding: 10px 0;
         }
-
-        /* Button Styles */
         .calendar-header button {
             padding: 10px 15px;
             border: none;
             border-radius: 5px;
             background-color: #007bff;
             color: white;
-            font-size: 1em; 
+            font-size: 1em;
             cursor: pointer;
             transition: background-color 0.3s ease, transform 0.2s ease;
         }
-
         .calendar-header button:hover {
             background-color: #0056b3;
             transform: scale(1.05);
         }
-
         .calendar-header button:focus {
-            outline: none; /* Remove outline on focus */
+            outline: none;
         }
     </style>
 </head>
 <body>
-    
+
     <div class="calendar-header">
         <button id="prevMonth">◀ Previous</button>
         <div class="current-month" id="monthDisplay"></div>
         <button id="nextMonth">Next ▶</button>
     </div>
     <div id="calendar" class="calendar"></div>
-   
-    <script src="sample_events_database.js"></script>
+
     <script src="base-Calendar.js"></script>
 </body>
 </html>
