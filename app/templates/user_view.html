@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Booking History</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" type="text/css" href="app/static/css/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
 </head>
 
@@ -13,8 +12,8 @@
     <header>
         <a href="#" class="logo">Ice Rink Scheduler</a>
         <ul>
-            <li><a href="home page.html">Home Page</a></li>
-            <li><a href="signup.html">Sign Up</a></li>
+            <li><a href="{{ url_for('home_page') }}">Home Page</a></li>
+            <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
         </ul>
     </header>
 
@@ -51,7 +50,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
-    <script src="app/static/js/java/user_view.js"></script>
+    <script src="{{ url_for('static', filename='java/signupscript.js') }}"></script>
 
 </body>
 </html>

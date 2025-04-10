@@ -110,17 +110,16 @@
 
 <body>
     <div class="container">
-        <form method="POST" action="{{ url_for('signup') }}">
         <h1>Sign Up</h1>
         <h4>Please fill out the form to create an account</h4>
         <hr>
-        <form id="signup-form">
+        <form id="signup-form" method="POST" action="{{ url_for('signup') }}">
             <label for="name"><b>Name:</b></label>
             <input type="text" name="name" id="name" placeholder="Jane Doe" required>
 
             <label for="email"><b>Email:</b></label>
             <input type="email" name="email" id="email" placeholder="janedoe@gmail.com" required>
-
+            
             <label for="phone-number"><b>Phone Number:</b></label>
             <input type="text" name="phone-number" id="phone-number" placeholder="123-456-7890" required>
 
@@ -144,7 +143,7 @@
         Password must be at least 8 characters.
     </div>
 
-    <script src="java/signupscript.js"></script>
+    <script src="{{ url_for('static', filename='java/signupscript.js') }}"></script>
 </body>
 
 </html>

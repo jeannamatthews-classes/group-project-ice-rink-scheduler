@@ -1,9 +1,9 @@
 flask==2.1.0
 bcrypt==4.0.1
 werkzeug==2.0.3
-pg8000==1.29.0
+pg8000==1.19.5
 sqlalchemy==1.4.36
 google-auth==2.38.0
 python-dotenv==0.21.0
-cloud-sql-python-connector
+cloud-sql-python-connector==1.2.0
 flask-bcrypt

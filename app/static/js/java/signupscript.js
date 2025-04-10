@@ -82,16 +82,21 @@ document.getElementById("signup-form").addEventListener("submit", function (even
         body: formData
     })
     .then(response => {
-        if (response.ok) {
-            messageEl.textContent = "Account created successfully!";
-            setTimeout(() => {
-                window.location.href = '/';  // Redirect to index.html after successful sign-up
-            }, 2000);
-        } else {
-            messageEl.textContent = "Error creating account. Please try again.";
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || "Unknown error");
+            });
         }
+        return response.json();
+    })
+    .then(data => {
+        messageEl.textContent = data.message || "Account created successfully!";
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 2000);
     })
     .catch(error => {
         messageEl.textContent = "Error: " + error.message;
+        console.error("Signup error:", error);
     });
 });

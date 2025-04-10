@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Ice Slot Rentals</title>
+
+    <style>
+        /* [Existing styles remain the same] */
+        .view-calendar-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        body {
+            display: flex;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        .main-container {
+            display: flex;
+            width: 100%;
+            gap: 20px;
+            margin-top: 40px;
+        }
+
+        .rental-sections {
+            display: flex;
+            flex-direction: column;
+            width: 40%;
+            gap: 20px;
+        }
+
+        .section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .calendar-container {
+            width: 60%;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        .rental-item {
+            background: #eee;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .rental-content {
+            flex-grow: 1;
+            /* Takes remaining space */
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .approve,
+        .decline,
+        .revert {
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .approve {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .decline {
+            background-color: #D32F2F;
+            color: white;
+        }
+
+        .revert {
+            background-color: #FFA500;
+            color: white;
+        }
+
+        .settings-gear {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+            z-index: 1000;
+            font-size: 24px;
+            color: #555;
+            background: transparent;
+        }
+
+        .account-popup {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .invoice-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .invoice-popup button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            background-color: #D32F2F;
+            color: white;
+        }
+
+        #passwordPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        #passwordPopup input {
+            display: block;
+            margin-bottom: 10px;
+            width: 100%;
+            padding: 5px;
+        }
+
+        .fc-event {
+            cursor: pointer;
+        }
+
+        .fc-event.available {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        .fc-event.pending {
+            background-color: #FFA500;
+            border-color: #FFA500;
+        }
+
+        .fc-event.accepted {
+            background-color: #2196F3;
+            border-color: #2196F3;
+        }
+
+        .slot-info-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .slot-info-popup button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .view-calendar-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 95%;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .empty-message {
+            color: #777;
+            font-style: italic;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main-container">
+        <div class="rental-sections">
+            <div class="section" id="pending">
+                <h2>Pending Rentals</h2>
+            </div>
+
+            <div class="section" id="declined">
+                <h2>Declined Rentals</h2>
+            </div>
+        </div>
+
+        <div class="calendar-container">
+            <h2>Calendar</h2>
+            <iframe src="{{ url_for('admin_calendar') }}" style="width:100%; height:500px; border:none;"></iframe>
+            <a href="{{ url_for('admin_calendar') }}" class="view-calendar-btn">View Larger Calendar</a>
+        </div>
+    </div>
+
+    <div class="settings-gear" onclick="toggleAccountPopup()">
+        <i class="fa-solid fa-cog"></i>
+    </div>
+    <div class="account-popup" id="accountPopup">
+        <p><strong>Name:</strong> John Doe</p>
+        <p><strong>Phone Number:</strong> (123) 456-7890</p>
+        <p><strong>Email:</strong> johndoe@example.com</p>
+        <button onclick="openPasswordPopup()">Change Password</button>
+    </div>
+
+    <div id="passwordPopup">
+        <h2>Change Password</h2>
+        <input type="password" id="oldPassword" placeholder="Enter current password">
+        <input type="password" id="newPassword" placeholder="Enter new password">
+        <input type="password" id="confirmPassword" placeholder="Confirm new password">
+        <button onclick="changePassword()">Submit</button>
+        <button onclick="closePasswordPopup()">Cancel</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='java/events-database.js') }}"></script>
+    <script src="{{ url_for('static', filename='java/admin_UI.js') }}"></script>
+</body>
+
+</html>

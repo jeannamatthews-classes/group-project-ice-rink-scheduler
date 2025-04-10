@@ -1,14 +1,14 @@
 from flask import Flask, render_template, request, jsonify
 from google.cloud.sql.connector import Connector
+from google.cloud.sql.connector.instance import IPTypes
 from flask_bcrypt import Bcrypt
 import os
 from datetime import datetime, timedelta
 import pg8000
-import os
 import sqlalchemy
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv(dotenv_path="app/env/.env")
 
 # Database configuration
@@ -19,22 +19,21 @@ DB_NAME = os.environ["DB_NAME"]
 
 # Initialize the connector
 connector = Connector()
-
-def get_connection():
-    # Establish a connection to the database
-    conn = connector.connect(
+def get_db_connection():
+    """Returns a database connection."""
+    return connector.connect(
         INSTANCE_CONNECTION_NAME,
-        "pg8000",  # Using pg8000 driver
+        "pg8000",
         user=DB_USER,
         password=DB_PASS,
-        db=DB_NAME
+        db=DB_NAME,
+        ip_type=IPTypes.PUBLIC  # Changed from "PUBLIC" to IPTypes.PUBLIC
     )
-    return conn
 
 # Create connection pool using SQLAlchemy
 pool = sqlalchemy.create_engine(
     "postgresql+pg8000://",
-    creator=get_connection,
+    creator=get_db_connection,
     pool_size=5,
     max_overflow=2,
     pool_timeout=30,
@@ -67,26 +66,40 @@ def userrequest():
 def home_page():
     return render_template('home page.html')
 
+@app.route('/admin calendar')
+def admin_calendar():
+    return render_template('admin_calendar_page.html')
+
+@app.route('/admin UI')
+def admin_UI():
+    return render_template('admin_UI_page.html')
+
 @app.route('/signup', methods=['GET'])
 def show_signup_form():
     return render_template('signup.html')
 
 @app.route('/signup', methods=['POST'])
 def signup():
-    # Extract form data
-    name = request.form['name']
-    email = request.form['email']
-    phone_number = request.form['phone-number']
-    password = request.form['password']
-
-    # Optional validation for phone number length
-    if len(phone_number) not in [10, 11]:
-        return jsonify({'error': 'Invalid phone number'}), 400
-
-    # Encrypt the password
-    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-
     try:
+        # Debug print the form data
+        print("Form data received:", request.form)
+        
+        # Extract form data - this is where the error might be happening
+        name = request.form.get('name', '')
+        email = request.form.get('email', '')
+        phone_number = request.form.get('phone-number', '')
+        password = request.form.get('password', '')
+        
+        # Check if data was properly extracted
+        print(f"Extracted values - Name: {name}, Email: {email}, Phone: {phone_number}")
+        
+        # Optional validation for phone number length
+        if len(phone_number) not in [10, 11]:
+            return jsonify({'error': 'Invalid phone number'}), 400
+
+        # Encrypt the password
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
         with pool.connect() as conn:
             # Check if the email already exists
             check_email_query = "SELECT COUNT(*) FROM ice.users WHERE email = %s"
@@ -102,13 +115,14 @@ def signup():
             """
             conn.execute(query, (name, email, phone_number, hashed_password))
 
-            # If insertion is successful, render success message
-            return render_template('homepage.html', message="Account created successfully!")
+            # Return JSON response for API consistency
+            return jsonify({'success': True, 'message': 'Account created successfully!'})
 
     except Exception as e:
-        # In case of an error, return a 500 error with the exception message
+        print(f"Error in signup: {str(e)}")
+        import traceback
+        traceback.print_exc()  # Print full traceback
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/events')
 def get_events():

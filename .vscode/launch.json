@@ -1,19 +1,11 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
             "name": "Python: Flask",
             "type": "python",
             "request": "launch",
-            "program": "app/app.py",
-            "args": [
-                "run"
-            ],
-            "env": {
-                "FLASK_APP": "app.app",
-                "FLASK_ENV": "development"
-            },
-            "jinja": true
+            "program": "${workspaceFolder}/app/app.py",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
