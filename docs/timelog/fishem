@@ -1,16 +1,18 @@
-2025 Mar 13, 45 minutes, UML Diagram
-2025 Mar 16, 10 minutes, Created fishem and added to timelog directory
-2025 Mar 24, 30 minutes, Researching and planning for UI User Login page
-2025 Mar 26, 80 minutes, Coding UI User Login Page (uncommitted)
-2025 Mar 27, 10 minutes, Fixed timelog
-2025 Mar 27, 90 minutes, Committing UI User Login Page
-                         Adding css and java Folder
-                         Created style.cs to help with coding conventions.
-2025 Apr 7, 120 minutes, Committing User Authentication
-2025 Apr 9, 30 minutes,  In-Person Meeting
-2025 Apr 9, 240 mintues, Researching Flask
-                         Researching Google Cloud SQL
-                         Moving files in app
-                         Implementing backend database
-2025 Apr 9, 45 minutes,  Continuation of backend database
-                         Fixing app.py and Flask related code
+2025 Mar 13, 45 minutes,  UML Diagram
+2025 Mar 16, 10 minutes,  Created fishem and added to timelog directory
+2025 Mar 24, 30 minutes,  Researching and planning for UI User Login page
+2025 Mar 26, 80 minutes,  Coding UI User Login Page (uncommitted)
+2025 Mar 27, 10 minutes,  Fixed timelog
+2025 Mar 27, 90 minutes,  Committing UI User Login Page
+                          Adding css and java Folder
+                          Created style.cs to help with coding conventions.
+2025 Apr 7, 120 minutes,  Committing User Authentication
+2025 Apr 9, 30 minutes,   In-Person Meeting
+2025 Apr 9, 240 mintues,  Researching Flask
+                          Researching Google Cloud SQL
+                          Moving files in app
+                          Implementing backend database
+2025 Apr 10, 45 minutes,  Continuation of backend database
+                          Fixing app.py and Flask related code
+2025 Apr 10, 120 minutes, Connecting Flask and Google Cloud SQL
+                          Fixing Coding Convetions
