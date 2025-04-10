@@ -54,6 +54,7 @@ header ul li a.active
 }
 /*END OF HEADER*/
 
+/*START OF USER VIEW*/
 .main-container {
     display: flex;
     width: 100%;
@@ -127,3 +128,154 @@ h2 {
     width: 100%;
     padding: 5px;
 }
+/*END OF USER VIEW*/
+
+/*START OF SIGNUP VIEW*/
+
+/* Specific body styles for signup page */
+body.signup-view {
+    background-color: #6d8770;
+    font-family: 'Times New Roman', Times, serif;
+    color: whitesmoke;
+}
+
+.signup-container {
+    width: 360px;
+    height: 750px;
+    margin: auto;
+    background-color: rgb(5, 63, 5);
+    border-radius: 50px;
+}
+
+body.signup-view h1 {
+    text-align: center;
+    padding-top: 15px;
+}
+
+body.signup-view h4 {
+    text-align: center;
+}
+
+body.signup-view form {
+    width: 300px;
+    margin-left: 20px;
+}
+
+body.signup-view form label {
+    display: flex;
+    margin-top: 20px;
+    font-size: 18px;
+}
+
+body.signup-view form input {
+    width: 100%;
+    padding: 7px;
+    border: none;
+    border: 1px solid gray;
+    border-radius: 6px;
+    outline: none;
+}
+
+body.signup-view button {
+    width: 320px;
+    height: 35px;
+    margin-top: 20px;
+    border: none;
+    background-color: rgb(150, 228, 164);
+    font-size: 18px;
+    
+}
+
+/*END OF SIGNUP VIEW*/
+
+/* START OF USER REQUEST VIEW */
+
+
+.request-main-container {
+    display: flex;
+    justify-content: space-between; 
+    align-items: flex-start; 
+
+}
+
+
+.request-form-container {
+    flex: 1; /* Allow the form to take up available space */
+    max-width: 60%; /* Prevent it from exceeding 45% of the container width */
+    background-color: rgb(5, 63, 5);
+    color: whitesmoke;
+    text-align: center;
+    border-radius: 8px;
+    padding: 15px;
+    box-sizing: border-box; /* Include padding in width calculations */
+}
+
+.request-form-container h1 {
+    margin-bottom: 10px;
+}
+
+.request-form-container form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.request-form-container form label {
+    display: flex;
+    margin-top: 20px;
+    font-size: 18px;
+    text-align: center;
+}
+
+.request-form-container form input {
+    padding: 7px;
+    border: none;
+    border: 1px solid gray;
+    border-radius: 6px;
+    outline: none;
+    text-align: center;
+    width: 80%;
+    height: 100%;
+}
+
+.request-form-container form input[type="checkbox"] {
+    width:auto;
+}
+
+#recurring-dates {
+    display: none;
+}
+
+.request-calendar-container {
+    flex: 1; /* Allow the calendar to take up available space */
+    max-width: 60%; /* Prevent it from exceeding 45% of the container width */
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box; /* Include padding in width calculations */
+}
+
+.request-calendar-container h2 {
+    margin-bottom: 10px;
+}
+
+.request-calendar-container iframe {
+    border-radius: 8px;
+    width: 100%; /* Ensure the iframe fits within the container */
+    height: 100%;
+}
+
+.view-calendar-btn {
+    display: inline-block;
+    margin-top: 10px;
+    text-decoration: none;
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.view-calendar-btn:hover {
+    text-decoration: underline;
+}
+
+/* END OF USER REQUEST VIEW */
