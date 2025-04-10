@@ -64,7 +64,7 @@ def userrequest():
 
 @app.route('/home page')
 def home_page():
-    return render_template('home page.html')
+    return render_template('view_calendar.html')
 
 @app.route('/admin calendar')
 def admin_calendar():
@@ -73,6 +73,10 @@ def admin_calendar():
 @app.route('/admin UI')
 def admin_UI():
     return render_template('admin_UI_page.html')
+
+@app.route('/base calendar')
+def base_calendar():
+    return render_template('base_calendar.html')
 
 @app.route('/signup', methods=['GET'])
 def show_signup_form():

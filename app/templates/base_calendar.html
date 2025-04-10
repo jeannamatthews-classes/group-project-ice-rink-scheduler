@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +7,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <button id="backButton" class="back-button" onclick="window.location.href='{{ url_for('admin_UI') }}';">Back to Admin Dashboard</button>
 
     <div class="calendar-header">
         <button id="prevMonth">◀ Previous</button>
@@ -15,9 +15,6 @@
     </div>
     <div id="calendar" class="calendar"></div>
 
-    <script src="{{ url_for('static', filename='java/events-database.js') }}"></script>
-    <script src="{{ url_for('static', filename='java/admin_calendar.js') }}"></script>
+    <script src="{{ url_for('static', filename='java/base_calendar.js') }}"></script>
 </body>
 </html>
-
-

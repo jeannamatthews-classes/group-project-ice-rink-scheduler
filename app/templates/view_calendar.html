@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ice Rink Rental Calendar</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="calendar-header">
+        <button id="prevMonth" disabled>◀ Previous</button>
+        <div class="current-month" id="monthDisplay"></div>
+        <button id="nextMonth" disabled>Next ▶</button>
+    </div>
+    <div id="calendar" class="calendar"></div>
+
+    <script src="{{ url_for('static', filename='java/events-database.js') }}"></script>
+    <script src="{{ url_for('static', filename='java/view_calendar.js') }}"></script>
+
+</body>
+</html>

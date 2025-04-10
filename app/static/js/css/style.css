@@ -1,12 +1,13 @@
 body {
-    display: flex;
     font-family: Arial, sans-serif;
-    margin: 0;
-    padding-top: 100px;
-    background-color: #f4f4f4;
+    max-width: 90%;
+    margin: auto;
+    padding: 20px;
 }
 
+/** **/
 /** HEADER SECTION**/
+/** **/
 header
 {
     position: absolute;
@@ -54,11 +55,9 @@ header ul li a.active
 }
 /*END OF HEADER*/
 
-.main-container {
-    display: flex;
-    width: 100%;
-    gap: 20px;
-}
+/** **/
+/** USER VIEW **/
+/** **/
 .events-list {
     width: 40%;
     background: white;
@@ -86,7 +85,6 @@ h2 {
 .fc-event {
     cursor: pointer;
 }
-
 .account-circle {
     position: absolute;
     top: 10px;
@@ -108,7 +106,6 @@ h2 {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     z-index: 1000;
 }
-
 #passwordPopup {
     display: none;
     position: fixed;
@@ -127,3 +124,189 @@ h2 {
     width: 100%;
     padding: 5px;
 }
+/** END OF USER VIEW **/
+
+/** **/
+/** SIGNUP PAGE **/
+/** **/
+.signup-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f2f2f2; 
+}
+form {
+    align-items: left;
+    width: 300px;
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+form label {
+    display: flex;
+    margin-top: 20px;
+    font-size: 18px;
+}
+form input {
+    width: 100%;
+    padding: 7px;
+    border: 1px solid gray;
+    border-radius: 6px;
+    outline: none;
+}
+#message {
+    margin-top: 10px;
+    font-size: 14px;
+    color: rgb(0, 0, 0);
+}
+#result {
+    margin-top: 15px;
+    color: rgb(0, 0, 0);
+    word-break: break-word;
+    font-size: 12px;
+}
+.hint-popup {
+    position: absolute;
+    background-color: #222;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+.hint-popup.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+#strength-meter {
+    margin-top: 5px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.weak {
+    color: red;
+}
+.medium {
+    color: orange;
+}
+.strong {
+    color: limegreen;
+}
+/** END OF SIGNUP PAGE **/
+
+/** **/
+/** CALENDAR STYLE **/
+/** **/
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.current-month {
+    font-size: 1.5em;
+    font-weight: bold;
+}
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+.day {
+    border: 1px solid #ddd;
+    padding: 10px;
+    min-height: 100px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+.day-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+.rental {
+    background-color: #f0f0f0;
+    margin-bottom: 5px;
+    padding: 5px;
+    border-radius: 4px;
+}
+.rental.accepted {
+    background-color: #28a745;  /* Green for accepted */
+    color: white;
+}
+.rental.pending {
+    background-color: #ffc107;  /* Yellow for pending */
+    color: black;
+}
+.rental.denied {
+    display: none;  /* Hide denied rentals */
+}
+.day-names > div {
+    font-weight: bold;
+    text-align: center;
+    padding: 10px 0;
+}
+/** END OF CALENDAR STYLE **/
+
+/** **/
+/** Back button for admin_calendar_page **/
+/** **/
+.back-button {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display:none; /*hidden by default */
+}
+/** END OF BACK BUTTON **/
+
+/** **/
+/** USER REQUEST PAGE **/
+/** **/
+.userrequest-wrapper {
+    width: 30%;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    margin-right: 20px;
+}
+
+.userrequest-wrapper form {
+    display: flex;
+    flex-direction: column;
+}
+
+
+/** END USER REQUEST PAGE **/
+
+/** **/
+/** Calendar View **/
+/** **/
+.main-container {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 5px;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.calendar-container {
+    width: 55%;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+/** END OF CALENDAR VIEW **/
+
