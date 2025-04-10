@@ -1,37 +1,37 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify
 from google.cloud.sql.connector import Connector
-import sqlalchemy
+from flask_bcrypt import Bcrypt
 import os
 from datetime import datetime, timedelta
 import pg8000
-
+import os
+import sqlalchemy
 from dotenv import load_dotenv
-load_dotenv()
 
-# Set credentials for Google Cloud SQL
-credential_path = "cloud.json"
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
-
-app = Flask(__name__)
+# Load environment variables
+load_dotenv(dotenv_path="app/env/.env")
 
 # Database configuration
 INSTANCE_CONNECTION_NAME = os.environ["INSTANCE_CONNECTION_NAME"]
 DB_USER = os.environ["DB_USER"]
 DB_PASS = os.environ["DB_PASS"]
 DB_NAME = os.environ["DB_NAME"]
+
 # Initialize the connector
 connector = Connector()
 
 def get_connection():
-    return connector.connect(
+    # Establish a connection to the database
+    conn = connector.connect(
         INSTANCE_CONNECTION_NAME,
-        "pg8000",
+        "pg8000",  # Using pg8000 driver
         user=DB_USER,
         password=DB_PASS,
         db=DB_NAME
     )
+    return conn
 
-# Create connection pool
+# Create connection pool using SQLAlchemy
 pool = sqlalchemy.create_engine(
     "postgresql+pg8000://",
     creator=get_connection,
@@ -41,10 +41,74 @@ pool = sqlalchemy.create_engine(
     pool_recycle=1800
 )
 
+# Initialize Flask app
+app = Flask(
+    __name__,
+    template_folder=os.path.join(os.getcwd(), 'app/templates'),
+    static_folder=os.path.join(os.getcwd(), 'app/static/js')
+)
+
+# Initialize bcrypt
+bcrypt = Bcrypt(app)
+
 @app.route('/')
 def home():
-    """Render the main calendar page"""
-    return render_template('homepage.html')
+    return render_template('index.html')
+
+@app.route('/user_view')
+def user_view():
+    return render_template('user_view.html')
+
+@app.route('/userrequest')
+def userrequest():
+    return render_template('userrequest.html')
+
+@app.route('/home page')
+def home_page():
+    return render_template('home page.html')
+
+@app.route('/signup', methods=['GET'])
+def show_signup_form():
+    return render_template('signup.html')
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    # Extract form data
+    name = request.form['name']
+    email = request.form['email']
+    phone_number = request.form['phone-number']
+    password = request.form['password']
+
+    # Optional validation for phone number length
+    if len(phone_number) not in [10, 11]:
+        return jsonify({'error': 'Invalid phone number'}), 400
+
+    # Encrypt the password
+    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+    try:
+        with pool.connect() as conn:
+            # Check if the email already exists
+            check_email_query = "SELECT COUNT(*) FROM ice.users WHERE email = %s"
+            result = conn.execute(check_email_query, (email,)).fetchone()
+
+            if result[0] > 0:
+                return jsonify({'error': 'Email already exists'}), 400
+
+            # Insert the user into the database
+            query = """
+                INSERT INTO ice.users (name, email, phone_number, password)
+                VALUES (%s, %s, %s, %s)
+            """
+            conn.execute(query, (name, email, phone_number, hashed_password))
+
+            # If insertion is successful, render success message
+            return render_template('homepage.html', message="Account created successfully!")
+
+    except Exception as e:
+        # In case of an error, return a 500 error with the exception message
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/events')
 def get_events():
@@ -57,7 +121,7 @@ def get_events():
         
         with pool.connect() as conn:
             # Query approved rental requests
-            rental_query = sqlalchemy.text("""
+            rental_query = sqlalchemy.text(""" 
                 SELECT 
                     request_id as id,
                     rental_name as name,
@@ -120,6 +184,7 @@ def get_events():
             
     except Exception as e:
         return {"error": str(e)}, 500
+
 
 def process_recurring_events(events, start_date, end_date):
     """Expand recurring events into individual occurrences"""

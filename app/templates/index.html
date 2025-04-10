@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ice Rink Slot Booking</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <header>
+        <ul>
+            <li><a href="#" class="active">Index</a></li>
+            <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
+            <li><a href="{{ url_for('home_page') }}">Home Page</a></li>
+            <li><a href="{{ url_for('user_view') }}">User view</a></li>
+            <li><a href="{{ url_for('userrequest') }}">User Request</a></li>
+        </ul>
+    </header>
+</body>
+</html>
