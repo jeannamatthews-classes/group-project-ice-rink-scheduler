@@ -58,13 +58,6 @@ header ul li a.active
 /** **/
 /** USER VIEW **/
 /** **/
-.events-list {
-    width: 40%;
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
 .event-item {
     background: #eee;
     padding: 10px;
@@ -72,12 +65,36 @@ header ul li a.active
     border-radius: 5px;
     cursor: pointer;
 }
-.calendar-container {
+.user-view .main-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 20px;
+    flex-wrap: nowrap;
+    margin-bottom: 5px;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.user-view .events-list {
+    margin-top: 20px;
+    width: 40%;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+}
+
+.user-view .calendar-container {
     width: 60%;
     background: white;
     padding: 15px;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    margin-top: 20px;
 }
 h2 {
     margin-bottom: 10px;

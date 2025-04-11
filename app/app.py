@@ -85,50 +85,42 @@ def show_signup_form():
 @app.route('/signup', methods=['POST'])
 def signup():
     try:
-        # Debug print the form data
         print("Form data received:", request.form)
-        
-        # Extract form data - this is where the error might be happening
-        name = request.form.get('name', '')
-        email = request.form.get('email', '')
-        phone_number = request.form.get('phone-number', '')
+
+        first_name = request.form.get('first_name', '')
+        last_name = request.form.get('last_name', '')
+        renter_email = request.form.get('renter_email', '')
+        phone = request.form.get('phone', '')
         password = request.form.get('password', '')
-        
-        # Check if data was properly extracted
-        print(f"Extracted values - Name: {name}, Email: {email}, Phone: {phone_number}")
-        
-        # Optional validation for phone number length
-        if len(phone_number) not in [10, 11]:
+
+        print(f"Extracted values - First Name: {first_name}, Last Name: {last_name}, Email: {renter_email}, Phone: {phone}")
+
+        if len(phone) not in [10, 11]:
             return jsonify({'error': 'Invalid phone number'}), 400
 
-        # Encrypt the password
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
         with pool.connect() as conn:
-            # Check if the email already exists
-            check_email_query = "SELECT COUNT(*) FROM ice.users WHERE email = %s"
-            result = conn.execute(check_email_query, (email,)).fetchone()
+            check_email_query = "SELECT COUNT(*) FROM ice.users WHERE renter_email = %s"
+            result = conn.execute(check_email_query, (renter_email,)).fetchone()
 
             if result[0] > 0:
                 return jsonify({'error': 'Email already exists'}), 400
 
-            # Insert the user into the database
             query = """
-                INSERT INTO ice.users (name, email, phone_number, password)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO ice.users (first_name, last_name, renter_email, password, phone)
+                VALUES (%s, %s, %s, %s, %s)
             """
-            conn.execute(query, (name, email, phone_number, hashed_password))
+            conn.execute(query, (first_name, last_name, renter_email, hashed_password, phone))
 
-            # Return JSON response for API consistency
             return jsonify({'success': True, 'message': 'Account created successfully!'})
 
     except Exception as e:
         print(f"Error in signup: {str(e)}")
         import traceback
-        traceback.print_exc()  # Print full traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/events')
 def get_events():
     """API endpoint to fetch events"""
     try:

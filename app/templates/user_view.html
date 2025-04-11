@@ -8,26 +8,26 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
 </head>
 
-<body>
-    <header>
-        <a href="#" class="logo">Ice Rink Scheduler</a>
+<body class="user-view">
+<!--     <header>
         <ul>
             <li><a href="{{ url_for('home_page') }}">Home Page</a></li>
             <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
         </ul>
-    </header>
+    </header> -->
 
     <div class="main-container">
         <div class="events-list">
             <h2>My Bookings</h2>
-            <div class="event-item">Booking 1: March 2, 2025 - 10:00 AM - 11:00 AM</div>
-            <div class="event-item">Booking 2: March 15, 2025 - 11:00 AM - 12:00 PM</div>
-            <div class="event-item">Booking 3: March 10, 2025 - 12:00 PM - 1:00 PM</div>
+            <div class="event-item">April 3, 2025 - 3:00 PM - 4:00 PM</div>
+            <div class="event-item">April 10, 2025 - 3:00 PM - 4:00 PM</div>
+            <div class="event-item">April 12, 2025 - 10:00 AM - 1:00 PM</div>
         </div>
 
         <div class="calendar-container">
-            <h2>Booking Calendar</h2>
-            <div id="calendar"></div>
+            <h2>Calendar</h2>
+            <iframe src="{{ url_for('admin_calendar') }}" style="width:100%; height:500px; border:none;"></iframe>
+            <a href="{{ url_for('admin_calendar') }}" class="view-calendar-btn">View Larger Calendar</a>
         </div>
 
         <div class="account-circle" onclick="toggleAccountPopup()"></div>
@@ -49,7 +49,6 @@
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
     <script src="{{ url_for('static', filename='java/signupscript.js') }}"></script>
 
 </body>

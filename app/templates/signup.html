@@ -14,27 +14,28 @@
     <hr>
     <div class="signup-wrapper">
         <form id="signup-form" method="POST" action="{{ url_for('signup') }}">
-            <label for="name"><b>Name:</b></label>
-            <input type="text" name="name" id="name" placeholder="Jane Doe" required>
-
-            <label for="email"><b>Email:</b></label>
-            <input type="email" name="email" id="email" placeholder="janedoe@gmail.com" required>
-
-            <label for="phone-number"><b>Phone Number:</b></label>
-            <input type="text" name="phone-number" id="phone-number" placeholder="123-456-7890" required>
-
+            <label for="first_name"><b>First Name:</b></label>
+            <input type="text" name="first_name" id="first_name" placeholder="Jane" required>
+        
+            <label for="last_name"><b>Last Name:</b></label>
+            <input type="text" name="last_name" id="last_name" placeholder="Doe" required>
+        
+            <label for="renter_email"><b>Email:</b></label>
+            <input type="email" name="renter_email" id="renter_email" placeholder="janedoe@gmail.com" required>
+        
+            <label for="phone"><b>Phone Number:</b></label>
+            <input type="text" name="phone" id="phone" placeholder="123-456-7890" required>
+        
             <label for="password"><b>Password:</b></label>
             <input type="password" name="password" id="password" placeholder="••••••••" required>
-            <div id="strength-meter"></div>
-
+        
             <label for="repeat-password"><b>Repeat Password:</b></label>
             <input type="password" name="repeat-password" id="repeat-password" placeholder="••••••••" required>
-
+        
             <p id="message">Password must be at least 8 characters and match.</p>
-
             <button type="submit">Submit</button>
         </form>
-
+        
         <div id="result"></div>
     </div>
 

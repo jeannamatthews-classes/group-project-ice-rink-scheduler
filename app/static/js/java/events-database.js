@@ -71,5 +71,32 @@ const RINK_EVENTS = [
         name: 'Saturday Open Hockey',
         description: 'Open Hockey Session',
         status: 'accepted'
-    }
+    },
+    {
+        id: 'event-008',
+        userID: 'user-001',
+        date: '2025-04-12',
+        time: '10:00 AM - 1:00 PM',
+        name: 'The Beavers',
+        description: 'Youth 14 Scrimmage. Puck drop at 10am.',
+        status: 'pending'
+    },
+    {
+        id: 'event-008',
+        userID: 'user-001',
+        date: '2025-04-03',
+        time: '3:00 PM - 4:00 PM',
+        name: 'The Beavers',
+        description: 'Youth 14 Practice',
+        status: 'accepted'
+    },
+    {
+        id: 'event-008',
+        userID: 'user-001',
+        date: '2025-04-10',
+        time: '3:00 PM - 4:00 PM',
+        name: 'The Beavers',
+        description: 'Youth 14 Practice',
+        status: 'accepted'
+    }      
 ];

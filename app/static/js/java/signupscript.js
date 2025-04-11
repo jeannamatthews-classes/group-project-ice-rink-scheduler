@@ -45,21 +45,20 @@ function normalizePhoneNumber(input) {
 }
 
 document.getElementById("signup-form").addEventListener("submit", function (event) {
-    event.preventDefault();  // Prevent the default form submission
+    event.preventDefault();
 
+    const first_name = document.getElementById("first_name").value;
+    const last_name = document.getElementById("last_name").value;
+    const renter_email = document.getElementById("renter_email").value;
+    let phone = document.getElementById("phone").value;
     const password = document.getElementById("password").value;
     const repeatPassword = document.getElementById("repeat-password").value;
-    const name = document.getElementById("name").value;
-    const email = document.getElementById("email").value;
-    let phoneNumber = document.getElementById("phone-number").value;
 
     const messageEl = document.getElementById("message");
     const resultEl = document.getElementById("result");
 
-    // Normalize the phone number
-    phoneNumber = normalizePhoneNumber(phoneNumber);
+    phone = normalizePhoneNumber(phone);
 
-    // Validation
     if (password.length < 8) {
         messageEl.textContent = "Password must be at least 8 characters.";
         return;
@@ -70,11 +69,11 @@ document.getElementById("signup-form").addEventListener("submit", function (even
         return;
     }
 
-    // Send data to the Flask backend (signup route)
     const formData = new FormData();
-    formData.append('name', name);
-    formData.append('email', email);
-    formData.append('phone-number', phoneNumber);  // Use normalized phone number
+    formData.append('first_name', first_name);
+    formData.append('last_name', last_name);
+    formData.append('renter_email', renter_email);
+    formData.append('phone', phone);
     formData.append('password', password);
 
     fetch('/signup', {
