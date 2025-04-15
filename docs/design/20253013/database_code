@@ -4,7 +4,6 @@ CREATE TABLE renter (
    last_name VARCHAR(25) NOT NULL,
    renter_email VARCHAR(50) NOT NULL UNIQUE,
    username VARCHAR(25) NOT NULL UNIQUE,
-   password VARCHAR(255) NOT NULL, -- Store hashed passwords
    phone VARCHAR(15)
  );
  
@@ -58,3 +57,5 @@ CREATE TABLE renter (
    admin_id INT NOT NULL,
    FOREIGN KEY (admin_id) REFERENCES admin(admin_id)
  );
+
+CREATE INDEX renter_email_idx on renter (renter_email);
