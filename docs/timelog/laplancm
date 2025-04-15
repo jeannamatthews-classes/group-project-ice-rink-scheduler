@@ -7,3 +7,5 @@ Did not do much before this. Maybe a zoom call with the group? Before that I was
 2025 March 31, 120, trying to implement admin page and fought with it for forever just to realize that what I was implementing could not be implemented until we had our backend database complete full of user info and ice info
 2025 April 1, 180, redoing the erd diagram along with the relational schema and creating the base database model code, all located in design doc. 60 min of it was a meeting with my team
 2025 April 9, 120, In person meeting with group members who are here, fixed the relational shcema, erd, and database code in the design docs and created the file for the old design docs. fixed the base calendar code so it worked without my json sample database because we cant use that anyway because we are grabbing information from a live database.
+2025 Apr 11, 70,  Pre-RAPS meeting, and Presenting in Raps
+
