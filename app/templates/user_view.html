@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Booking History</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css">
 </head>
 
 <body class="user-view">
-<!--     <header>
+    <!--     <header>
         <ul>
             <li><a href="{{ url_for('home_page') }}">Home Page</a></li>
             <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
@@ -17,11 +17,37 @@
     </header> -->
 
     <div class="main-container">
-        <div class="events-list">
-            <h2>My Bookings</h2>
-            <div class="event-item">April 3, 2025 - 3:00 PM - 4:00 PM</div>
-            <div class="event-item">April 10, 2025 - 3:00 PM - 4:00 PM</div>
-            <div class="event-item">April 12, 2025 - 10:00 AM - 1:00 PM</div>
+        <div class="booking-column">
+            <div class="events-list">
+                <h2>Upcoming Bookings</h2>
+                <div class="event-item accepted">
+                    <h3>The Beavers</h3>
+                    <p class="event-datetime">2025-04-03 | 3:00 PM - 4:00 PM</p>
+                    <p>Youth 14 Practice</p>
+                    <button class="status-btn accepted">Accepted</button>
+                </div>    
+                <div class="event-item accepted">
+                    <h3>The Beavers</h3>
+                    <p class="event-datetime">2025-04-10 | 3:00 PM - 4:00 PM</p>
+                    <p>Youth 14 Practice</p>
+                    <button class="status-btn accepted">Accepted</button>
+                </div>      
+                <div class="event-item pending">
+                    <h3>The Beavers</h3>
+                    <p class="event-datetime">2025-04-12 | 10:00 AM - 1:00 PM</p>
+                    <p>Youth 14 Scrimmage. Puck drop at 10am.</p>
+                    <button class="status-btn pending">Pending</button>
+                </div>         
+            </div>
+
+            <div class="events-list2">
+                <h2>Previous Bookings</h2>
+                <div class="event-item">March 28, 2025 - 3:00 PM - 4:00 PM</div>
+                <div class="event-item">March 21, 2025 - 3:00 PM - 4:00 PM</div>
+                <div class="event-item">March 14, 2025 - 3:00 PM - 4:00 PM</div>
+                <div class="event-item">March 7, 2025 - 3:00 PM - 4:00 PM</div>
+                <div class="event-item">Feburary 28, 2025 - 3:00 PM - 4:00 PM</div>
+            </div>
         </div>
 
         <div class="calendar-container">
@@ -37,7 +63,7 @@
             <p><strong>Email:</strong> johndoe@example.com</p>
             <button onclick="openPasswordPopup()">Change Password</button>
         </div>
-    
+
         <div id="passwordPopup">
             <h2>Change Password</h2>
             <input type="password" id="oldPassword" placeholder="Enter current password">
@@ -52,5 +78,5 @@
     <script src="{{ url_for('static', filename='java/signupscript.js') }}"></script>
 
 </body>
-</html>
 
+</html>
