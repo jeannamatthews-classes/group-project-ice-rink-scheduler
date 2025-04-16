@@ -62,7 +62,55 @@ def reset_password():
     """Render the reset password page"""
     return render_template("resetpassword.html")
 
-
+@app.route('/api/register', methods=['POST'])
+def register_user():
+    """Register a new user in the database"""
+    try:
+        data = request.get_json()
+        
+        required_fields = ['first_name', 'last_name', 'renter_email', 'phone', 'firebase_uid']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+        
+        with pool.connect() as conn:
+            # Check if user already exists
+            check_query = sqlalchemy.text("""
+                SELECT renter_id FROM ice.renter 
+                WHERE renter_email = :email OR firebase_uid = :uid
+            """)
+            existing_user = conn.execute(
+                check_query,
+                {"email": data['renter_email'], "uid": data['firebase_uid']}
+            ).fetchone()
+            
+            if existing_user:
+                return jsonify({"error": "User already exists"}), 409
+            
+            # Insert new user
+            insert_query = sqlalchemy.text("""
+                INSERT INTO ice.renter 
+                (first_name, last_name, renter_email, phone, firebase_uid, created_at)
+                VALUES 
+                (:first_name, :last_name, :email, :phone, :uid, NOW())
+                RETURNING renter_id
+            """)
+            result = conn.execute(
+                insert_query,
+                {
+                    "first_name": data['first_name'],
+                    "last_name": data['last_name'],
+                    "email": data['renter_email'],
+                    "phone": data['phone'],
+                    "uid": data['firebase_uid']
+                }
+            )
+            conn.commit()
+            
+            return jsonify({"message": "User registered successfully", "renter_id": result.fetchone()[0]})
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/user_profile/<firebase_uid>')
 def get_user_profile(firebase_uid):
