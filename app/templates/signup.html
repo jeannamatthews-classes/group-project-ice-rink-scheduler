@@ -205,7 +205,7 @@
       if (user) {
         await user.reload();
         if (user.emailVerified) {
-          window.location.href = "/welcome.html";
+          window.location.href = "/";
         } else {
           currentUser = user;
         }
