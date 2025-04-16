@@ -1,21 +1,24 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify 
 from google.cloud.sql.connector import Connector
 import sqlalchemy
 import os
 from datetime import datetime, timedelta
 import pg8000
+from dotenv import load_dotenv
+
+load_dotenv('.env')
 
 # Set credentials for Google Cloud SQL
-credential_path = "quixotic-bonito-455201-s5-bf4b41236b9e.json"
+credential_path = "cloud.json"
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
 
 app = Flask(__name__)
 
 # Database configuration
-INSTANCE_CONNECTION_NAME = os.environ.get("INSTANCE_CONNECTION_NAME", "quixotic-bonito-455201-s5:us-central1:clarkson-ice-rink")
-DB_USER = os.environ.get("DB_USER", "read_only")
-DB_PASS = os.environ.get("DB_PASS", "logannorris")
-DB_NAME = os.environ.get("DB_NAME", "postgres")
+INSTANCE_CONNECTION_NAME = os.environ["INSTANCE_CONNECTION_NAME"]
+DB_USER = os.environ["DB_USER"]
+DB_PASS = os.environ["DB_PASS"]
+DB_NAME = os.environ["DB_NAME"]
 
 # Initialize the connector
 connector = Connector()
@@ -43,6 +46,235 @@ pool = sqlalchemy.create_engine(
 def home():
     """Render the main calendar page"""
     return render_template('homepage.html')
+
+@app.route('/u')
+def u():
+    """Render the main calendar page"""
+    return render_template('userrequest.html')
+
+@app.route('/signup')
+def signup():
+    """Render the signup page"""
+    return render_template('signup.html')
+
+@app.route("/resetpassword")
+def reset_password():
+    """Render the reset password page"""
+    return render_template("resetpassword.html")
+
+
+
+@app.route('/api/user_profile/<firebase_uid>')
+def get_user_profile(firebase_uid):
+    """Get user profile information from the renter table"""
+    try:
+        with pool.connect() as conn:
+            # Query the renter table
+            profile_query = sqlalchemy.text("""
+                SELECT first_name, last_name, phone, renter_email
+                FROM ice.renter 
+                WHERE firebase_uid = :firebase_uid
+            """)
+            
+            profile = conn.execute(
+                profile_query,
+                {"firebase_uid": firebase_uid}
+            ).mappings().first()
+            
+            if not profile:
+                return jsonify({"error": "User profile not found"}), 404
+                
+            return jsonify({
+                "first_name": profile['first_name'],
+                "last_name": profile['last_name'],
+                "phone": profile['phone'],
+                "email": profile['renter_email']
+            })
+            
+    except Exception as e:
+        print("Error fetching user profile:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/submit_request', methods=['POST'])
+def submit_request():
+    """Submit a new ice slot request"""
+    try:
+        data = request.get_json()
+        print("Received request data:", data)
+        
+        required_fields = ['firebase_uid', 'rental_name', 'start_date', 'end_date', 
+                         'start_time', 'end_time', 'is_recurring']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+        
+        with pool.connect() as conn:
+            # Get user_id from firebase_uid
+            user_query = sqlalchemy.text("""
+                SELECT renter_id FROM ice.renter 
+                WHERE firebase_uid = :firebase_uid
+            """)
+            user_result = conn.execute(
+                user_query,
+                {"firebase_uid": data['firebase_uid']}
+            ).fetchone()
+            
+            if not user_result:
+                return jsonify({"error": "User not found"}), 404
+                
+            user_id = user_result[0]
+            
+            # Insert the new request
+            insert_query = sqlalchemy.text("""
+                INSERT INTO ice.rental_request 
+                (user_id, rental_name, additional_desc, start_date, end_date, 
+                 start_time, end_time, rental_status, is_recurring, 
+                 recurrence_rule, request_date)
+                VALUES 
+                (:user_id, :rental_name, :additional_desc, :start_date, :end_date,
+                 :start_time, :end_time, 'pending', :is_recurring,
+                 CASE WHEN :is_recurring THEN :recurrence_rule ELSE NULL END,
+                 NOW())
+                RETURNING request_id
+            """)
+            
+            result = conn.execute(
+                insert_query,
+                {
+                    "user_id": user_id,
+                    "rental_name": data['rental_name'],
+                    "additional_desc": data.get('additional_desc', ''),
+                    "start_date": data['start_date'],
+                    "end_date": data['end_date'],
+                    "start_time": data['start_time'],
+                    "end_time": data['end_time'],
+                    "is_recurring": data['is_recurring'],
+                    "recurrence_rule": data.get('recurrence_rule', 'daily')
+                }
+            )
+            conn.commit()
+            
+            return jsonify({
+                "message": "Request submitted successfully",
+                "request_id": result.fetchone()[0]
+            })
+            
+    except Exception as e:
+        print("Error submitting request:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/user_requests/<firebase_uid>')
+def get_user_requests(firebase_uid):
+    """Get all requests for a specific user"""
+    if not firebase_uid or not isinstance(firebase_uid, str):
+        return jsonify({"error": "Invalid firebase_uid"}), 400
+
+    try:
+        with pool.connect() as conn:
+            # Get user_id from firebase_uid
+            user_query = sqlalchemy.text("""
+                SELECT renter_id FROM ice.renter 
+                WHERE firebase_uid = :firebase_uid
+            """)
+            user_result = conn.execute(
+                user_query,
+                {"firebase_uid": firebase_uid}
+            ).fetchone()
+            
+            if not user_result:
+                return jsonify({"error": "User not found"}), 404
+                
+            user_id = user_result[0]
+            
+            # Convert RowMapping to dictionary for JSON serialization
+            def row_to_dict(row):
+                return {key: value for key, value in row._mapping.items()}
+            
+            # Get pending requests
+            pending_query = sqlalchemy.text("""
+                SELECT request_id, rental_name, additional_desc, 
+                       TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
+                       TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
+                       TO_CHAR(start_time, 'HH12:MI AM') as start_time,
+                       TO_CHAR(end_time, 'HH12:MI AM') as end_time,
+                       is_recurring, recurrence_rule,
+                       TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                       'pending' as request_status
+                FROM ice.rental_request
+                WHERE user_id = :user_id 
+                AND rental_status = 'pending'
+                ORDER BY start_date, start_time
+            """)
+            
+            pending = [row_to_dict(row) for row in conn.execute(
+                pending_query,
+                {"user_id": user_id}
+            )]
+            
+            # Get accepted requests
+            accepted_query = sqlalchemy.text("""
+                SELECT request_id, rental_name, additional_desc, 
+                       TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
+                       TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
+                       TO_CHAR(start_time, 'HH12:MI AM') as start_time,
+                       TO_CHAR(end_time, 'HH12:MI AM') as end_time,
+                       is_recurring, recurrence_rule,
+                       TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                       'approved' as request_status
+                FROM ice.rental_request
+                WHERE user_id = :user_id 
+                AND rental_status = 'approved'
+                ORDER BY start_date, start_time
+            """)
+            
+            accepted = [row_to_dict(row) for row in conn.execute(
+                accepted_query,
+                {"user_id": user_id}
+            )]
+            
+            return jsonify({
+                "requests": pending + accepted
+            })
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error fetching requests for {firebase_uid}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        print(f"Unexpected error fetching requests for {firebase_uid}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+@app.route('/api/delete_request/<request_id>', methods=['DELETE'])
+def delete_request(request_id):
+    """Delete a specific request"""
+    try:
+        with pool.connect() as conn:
+            # Verify the request exists and belongs to the user
+            verify_query = sqlalchemy.text("""
+                SELECT rr.user_id 
+                FROM ice.rental_request rr
+                JOIN ice.renter r ON rr.user_id = r.renter_id
+                WHERE rr.request_id = :request_id
+            """)
+            result = conn.execute(verify_query, {"request_id": request_id}).fetchone()
+            
+            if not result:
+                return jsonify({"error": "Request not found"}), 404
+                
+            # Delete the request
+            delete_query = sqlalchemy.text("""
+                DELETE FROM ice.rental_request
+                WHERE request_id = :request_id
+            """)
+            conn.execute(delete_query, {"request_id": request_id})
+            
+            # Commit the transaction to make it persistent
+            conn.commit()
+            
+            return jsonify({"success": True})
+            
+    except Exception as e:
+        print(f"Error deleting request {request_id}: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/events')
 def get_events():
@@ -186,6 +418,53 @@ def format_event(event, date):
         'isRecurring': event['is_recurring'],
         'recurrenceRule': event.get('recurrence_rule')
     }
+
+@app.route('/api/update_profile', methods=['POST'])
+def update_profile():
+    """Update user profile information"""
+    try:
+        data = request.get_json()
+        print("Received profile update data:", data)
+        
+        required_fields = ['firebase_uid', 'first_name', 'last_name', 'phone']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+        
+        with pool.connect() as conn:
+            # Update the user profile
+            update_query = sqlalchemy.text("""
+                UPDATE ice.renter
+                SET first_name = :first_name,
+                    last_name = :last_name,
+                    phone = :phone
+                WHERE firebase_uid = :firebase_uid
+                RETURNING renter_id
+            """)
+            
+            result = conn.execute(
+                update_query,
+                {
+                    "firebase_uid": data['firebase_uid'],
+                    "first_name": data['first_name'],
+                    "last_name": data['last_name'],
+                    "phone": data['phone']
+                }
+            )
+            
+            if result.rowcount == 0:
+                return jsonify({"error": "User not found"}), 404
+                
+            conn.commit()
+            
+            return jsonify({
+                "success": True,
+                "message": "Profile updated successfully"
+            })
+            
+    except Exception as e:
+        print("Error updating profile:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
