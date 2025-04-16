@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body, html {
+      margin: 0; padding: 0; height: 100%; overflow: hidden;
+      font-family: 'Montserrat', sans-serif;
+      background-color: #f4f7fa;
+    }
+    .header { position: absolute; top: 20px; left: 30px; font-size: 22px; font-weight: 700; color: #319b54; }
+    .container { height: 100vh; display: flex; justify-content: center; align-items: center; }
+    .signup-container {
+      background: white; padding: 40px; border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 400px; position: relative;
+    }
+    .signup-container h2 { text-align: center; margin-bottom: 30px; color: #0066ff; }
+    .signup-container label { font-weight: 600; display: block; margin: 10px 0 5px; }
+    .signup-container input {
+      width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px;
+    }
+    .signup-container button {
+      margin-top: 10px; width: 100%; padding: 12px;
+      background-color: #0066ff; color: white; border: none;
+      border-radius: 8px; font-size: 16px; cursor: pointer;
+    }
+    .signup-container button:hover { background-color: #0055dd; }
+    .error, .warning, .success {
+      margin-top: 15px; text-align: center; font-weight: bold;
+    }
+    .error { color: red; }
+    .warning { color: #ff9800; }
+    .success { color: green; }
+    .signup-container .action-links {
+      margin-top: 15px; text-align: center;
+    }
+    .action-links a {
+      color: #0066ff;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .action-links a:hover {
+      text-decoration: underline;
+    }
+    .verification-message {
+      display: none; text-align: center; margin-top: 20px;
+      padding: 15px; background-color: #f8f9fa;
+      border-radius: 8px; border: 1px solid #dee2e6;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">Clarkson Ice Rink</div>
+  <div class="container">
+    <div class="signup-container">
+      <h2>Create Account</h2>
+      <form id="signup-form">
+        <label for="first-name">First Name</label>
+        <input type="text" id="first-name" required>
+        <label for="last-name">Last Name</label>
+        <input type="text" id="last-name" required>
+        <label for="email">Email</label>
+        <input type="email" id="email" required>
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" required>
+        <label for="password">Password</label>
+        <input type="password" id="password" required>
+        <label for="confirm-password">Confirm Password</label>
+        <input type="password" id="confirm-password" required>
+        <button type="submit">Sign Up</button>
+        <div class="error" id="error-message"></div>
+        <div class="warning" id="warning-message"></div>
+        <div class="success" id="success-message"></div>
+        <div class="action-links">
+          <a href="/">Already have an account? Log in</a>
+        </div>
+      </form>
+      <div id="verification-message" class="verification-message">
+        <h3>Almost there!</h3>
+        <p>A verification email has been sent to <strong id="user-email"></strong>.</p>
+        <p>Please check your inbox and click the verification link to complete registration.</p>
+        <p>Didn't receive it? <a href="#" id="resend-verification">Resend</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-app-compat.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-auth-compat.min.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA_VXKD9_HiLyNZnzwAn7UB9RPrvMJSMPM",
+      authDomain: "icerinkscheduling.firebaseapp.com",
+      projectId: "icerinkscheduling",
+      storageBucket: "icerinkscheduling.appspot.com",
+      messagingSenderId: "887329525211",
+      appId: "1:887329525211:web:75bc17a1639dfdc5d4abfe"
+    }; 
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    const signupForm = document.getElementById("signup-form");
+    const errorDiv = document.getElementById("error-message");
+    const verificationMessage = document.getElementById("verification-message");
+    const userEmailSpan = document.getElementById("user-email");
+    const resendVerification = document.getElementById("resend-verification");
+    let currentUser = null;
+
+    resendVerification.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (currentUser) {
+        currentUser.sendEmailVerification().then(() => {
+          alert("Verification email sent.");
+        }).catch((err) => {
+          alert("Error sending verification email.");
+        });
+      }
+    });
+
+    signupForm.onsubmit = async (e) => {
+      e.preventDefault();
+
+      const firstName = document.getElementById("first-name").value.trim();
+      const lastName = document.getElementById("last-name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.replace(/\D/g, '');
+      const password = document.getElementById("password").value;
+      const confirmPassword = document.getElementById("confirm-password").value;
+
+      errorDiv.textContent = "";
+
+      if (phone.length !== 10) {
+        errorDiv.textContent = "Phone number must be 10 digits.";
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        errorDiv.textContent = "Passwords do not match.";
+        return;
+      }
+
+      try {
+        // Create user in Firebase Auth
+        const userCred = await auth.createUserWithEmailAndPassword(email, password);
+        currentUser = userCred.user;
+
+        // Send verification email
+        await currentUser.sendEmailVerification();
+
+        // Save user data to Cloud SQL via your Flask backend
+        const userData = {
+          first_name: firstName,
+          last_name: lastName,
+          renter_email: email,
+          phone: phone,
+          firebase_uid: currentUser.uid
+        };
+
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(userData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to save user data');
+        }
+
+        // Show verification message
+        userEmailSpan.textContent = email;
+        signupForm.style.display = "none";
+        verificationMessage.style.display = "block";
+
+      } catch (error) {
+        if (error.code === "auth/email-already-in-use") {
+          try {
+            const existingCred = await auth.signInWithEmailAndPassword(email, password);
+            await existingCred.user.reload();
+            if (existingCred.user.emailVerified) {
+              errorDiv.textContent = "This email is already verified. Please log in.";
+            } else {
+              errorDiv.textContent = "Email is registered but not verified. We've sent another verification link.";
+              await existingCred.user.sendEmailVerification();
+            }
+            await auth.signOut();
+          } catch (signInError) {
+            errorDiv.textContent = "This email is already registered. If you forgot your password, please reset it.";
+          }
+        } else {
+          errorDiv.textContent = error.message;
+        }
+      }
+    };
+
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        await user.reload();
+        if (user.emailVerified) {
+          window.location.href = "/welcome.html";
+        } else {
+          currentUser = user;
+        }
+      }
+    });
+  </script>
+</body>
+</html>
+
