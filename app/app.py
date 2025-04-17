@@ -62,6 +62,7 @@ def reset_password():
     """Render the reset password page"""
     return render_template("resetpassword.html")
 
+
 @app.route('/api/register', methods=['POST'])
 def register_user():
     """Register a new user in the database"""
@@ -111,6 +112,8 @@ def register_user():
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
 
 @app.route('/api/user_profile/<firebase_uid>')
 def get_user_profile(firebase_uid):
@@ -213,7 +216,7 @@ def submit_request():
 
 @app.route('/api/user_requests/<firebase_uid>')
 def get_user_requests(firebase_uid):
-    """Get all requests for a specific user"""
+    """Get all requests (pending, accepted, and declined) for a specific user"""
     if not firebase_uid or not isinstance(firebase_uid, str):
         return jsonify({"error": "Invalid firebase_uid"}), 400
 
@@ -240,14 +243,19 @@ def get_user_requests(firebase_uid):
             
             # Get pending requests
             pending_query = sqlalchemy.text("""
-                SELECT request_id, rental_name, additional_desc, 
-                       TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
-                       TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
-                       TO_CHAR(start_time, 'HH12:MI AM') as start_time,
-                       TO_CHAR(end_time, 'HH12:MI AM') as end_time,
-                       is_recurring, recurrence_rule,
-                       TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
-                       'pending' as request_status
+                SELECT 
+                    request_id, 
+                    rental_name, 
+                    additional_desc, 
+                    TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
+                    TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
+                    TO_CHAR(start_time, 'HH12:MI AM') as start_time,
+                    TO_CHAR(end_time, 'HH12:MI AM') as end_time,
+                    is_recurring, 
+                    recurrence_rule,
+                    TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                    'pending' as request_status,
+                    NULL as declined_reason
                 FROM ice.rental_request
                 WHERE user_id = :user_id 
                 AND rental_status = 'pending'
@@ -261,14 +269,19 @@ def get_user_requests(firebase_uid):
             
             # Get accepted requests
             accepted_query = sqlalchemy.text("""
-                SELECT request_id, rental_name, additional_desc, 
-                       TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
-                       TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
-                       TO_CHAR(start_time, 'HH12:MI AM') as start_time,
-                       TO_CHAR(end_time, 'HH12:MI AM') as end_time,
-                       is_recurring, recurrence_rule,
-                       TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
-                       'approved' as request_status
+                SELECT 
+                    request_id, 
+                    rental_name, 
+                    additional_desc, 
+                    TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
+                    TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
+                    TO_CHAR(start_time, 'HH12:MI AM') as start_time,
+                    TO_CHAR(end_time, 'HH12:MI AM') as end_time,
+                    is_recurring, 
+                    recurrence_rule,
+                    TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                    'approved' as request_status,
+                    NULL as declined_reason
                 FROM ice.rental_request
                 WHERE user_id = :user_id 
                 AND rental_status = 'approved'
@@ -280,8 +293,34 @@ def get_user_requests(firebase_uid):
                 {"user_id": user_id}
             )]
             
+            # Get declined requests with reason
+            declined_query = sqlalchemy.text("""
+                SELECT 
+                    request_id, 
+                    rental_name, 
+                    additional_desc, 
+                    TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
+                    TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
+                    TO_CHAR(start_time, 'HH12:MI AM') as start_time,
+                    TO_CHAR(end_time, 'HH12:MI AM') as end_time,
+                    is_recurring, 
+                    recurrence_rule,
+                    TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                    'declined' as request_status,
+                    declined_reason
+                FROM ice.rental_request
+                WHERE user_id = :user_id 
+                AND rental_status = 'denied'
+                ORDER BY start_date, start_time
+            """)
+            
+            declined = [row_to_dict(row) for row in conn.execute(
+                declined_query,
+                {"user_id": user_id}
+            )]
+            
             return jsonify({
-                "requests": pending + accepted
+                "requests": pending + accepted + declined
             })
             
     except sqlalchemy.exc.SQLAlchemyError as e:
