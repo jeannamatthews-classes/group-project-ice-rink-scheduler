@@ -24,9 +24,11 @@ function loadUserRequests(firebase_uid) {
       
       const pending = requests.filter(r => r.request_status === 'pending');
       const accepted = requests.filter(r => r.request_status === 'approved');
+      const declined = requests.filter(r => r.request_status === 'declined');
       
       renderRequests(pending, 'pendingRequests');
       renderRequests(accepted, 'acceptedRequests');
+      renderDeclinedRequests(declined, 'declinedRequests');
     })
     .catch(error => {
       console.error("Error loading requests:", error);
@@ -34,8 +36,60 @@ function loadUserRequests(firebase_uid) {
         '<div class="no-requests">Error loading requests. Please try again later.</div>';
       document.getElementById('acceptedRequests').innerHTML = 
         '<div class="no-requests">Error loading requests. Please try again later.</div>';
+      document.getElementById('declinedRequests').innerHTML = 
+        '<div class="no-requests">Error loading requests. Please try again later.</div>';
     });
 }
+
+function renderDeclinedRequests(requests, containerId) {
+  const container = document.getElementById(containerId);
+  
+  if (!requests || requests.length === 0) {
+    container.innerHTML = '<div class="no-requests">No declined requests found</div>';
+    return;
+  }
+  
+  let html = '';
+  requests.forEach(request => {
+    const startDate = new Date(request.start_date).toLocaleDateString();
+    const endDate = new Date(request.end_date).toLocaleDateString();
+    const formattedRequestDate = formatLocalTime(request.request_date);
+    
+    html += `
+      <div class="request-item" data-request-id="${request.request_id}">
+        <div class="request-header">
+          <span class="request-name">
+            ${request.rental_name}
+            ${request.is_recurring ? '<span class="recurring-badge">Recurring</span>' : ''}
+          </span>
+          <span class="request-status status-declined">
+            Declined
+          </span>
+        </div>
+        <div class="request-dates">
+          ${startDate} ${startDate !== endDate ? `to ${endDate}` : ''}
+        </div>
+        <div class="request-time">
+          ${request.start_time} - ${request.end_time}
+        </div>
+        ${request.additional_desc ? `
+          <div class="request-desc">
+            ${request.additional_desc}
+          </div>
+        ` : ''}
+        <div class="declined-reason">
+          <strong>Reason:</strong> ${request.declined_reason || 'No reason provided'}
+        </div>
+        <div class="request-footer">
+          <div class="request-date">Submitted: ${formattedRequestDate}</div>
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
 
 function renderRequests(requests, containerId) {
   const container = document.getElementById(containerId);

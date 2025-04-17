@@ -1,11 +1,17 @@
-function switchView(viewId) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById(viewId).classList.add('active');
-
-  document.querySelectorAll('.view-buttons button').forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.textContent.toLowerCase().includes(viewId)) btn.classList.add('active');
+function switchView(viewName) {
+  // Hide all views
+  document.querySelectorAll('.view').forEach(view => {
+    view.classList.remove('active');
   });
+  
+  // Deactivate all buttons
+  document.querySelectorAll('.view-buttons button').forEach(button => {
+    button.classList.remove('active');
+  });
+  
+  // Activate selected view and button
+  document.getElementById(viewName).classList.add('active');
+  document.querySelector(`.view-buttons button[onclick="switchView('${viewName}')"]`).classList.add('active');
 }
 
 // Close modal if clicked outside
