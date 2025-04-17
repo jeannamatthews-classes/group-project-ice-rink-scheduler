@@ -43,26 +43,42 @@
     .view-buttons {
       display: flex;
       justify-content: center;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
+      gap: 5px;
     }
 
     .view-buttons button {
       background: none;
       border: none;
       font-weight: 600;
-      font-size: 16px;
-      padding: 8px 20px;
-      margin: 0 10px;
+      font-size: 14px;
+      padding: 6px 12px;
       cursor: pointer;
       color: #555;
-      border-radius: 20px;
+      border-radius: 15px;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .view-buttons button.active {
       color: white;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .view-buttons button:nth-child(1).active {
       background-color: #0066ff;
-      box-shadow: 0 2px 8px rgba(0, 102, 255, 0.3);
+    }
+
+    .view-buttons button:nth-child(2).active {
+      background-color: #ffc107;
+    }
+
+    .view-buttons button:nth-child(3).active {
+      background-color: #28a745;
+    }
+
+    .view-buttons button:nth-child(4).active {
+      background-color: #dc3545;
     }
 
     .view {
@@ -223,7 +239,18 @@
 
     .request-name {
       font-weight: bold;
-      color: #0066ff;
+    }
+
+    .request-name.pending {
+      color: #ffc107;
+    }
+
+    .request-name.approved {
+      color: #28a745;
+    }
+
+    .request-name.declined {
+      color: #dc3545;
     }
 
     .request-status {
@@ -240,6 +267,11 @@
     .status-approved {
       background-color: #d4edda;
       color: #155724;
+    }
+
+    .status-declined {
+      background-color: #f8d7da;
+      color: #721c24;
     }
 
     .request-date {
@@ -349,7 +381,6 @@
     }
     
     .time-input-container::after {
-      content: "⌄";
       position: absolute;
       top: 50%;
       right: 15px;
@@ -489,6 +520,15 @@
     .cancel-profile:hover {
       background-color: #e0e0e0;
     }
+
+    .declined-reason {
+      margin-top: 8px;
+      padding: 8px;
+      background-color: #f8f9fa;
+      border-left: 3px solid #dc3545;
+      color: #721c24;
+      font-size: 0.9em;
+    }
   </style>
 </head>
 
@@ -502,6 +542,7 @@
         <button class="active" onclick="switchView('request')">Request</button>
         <button onclick="switchView('pending')">Pending</button>
         <button onclick="switchView('accepted')">Accepted</button>
+        <button onclick="switchView('declined')">Declined</button>
       </div>
 
       <div id="request" class="view active">
@@ -555,8 +596,15 @@
           <div class="no-requests">Loading your accepted requests...</div>
         </div>
       </div>
-    </div>
 
+      <div id="declined" class="view">
+        <h2>Declined Requests</h2>
+        <div class="requests-grid" id="declinedRequests">
+          <div class="no-requests">Loading your declined requests...</div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Calendar Section -->
     <div class="calendar-container">
       <div class="calendar-header">
@@ -618,14 +666,13 @@
   <!-- Add flatpickr for date/time pickers -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-<!-- Add your scripts in order of dependency -->
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="/static/js/auth.js"></script>
-<script src="/static/js/profile.js"></script>
-<script src="/static/js/requests.js"></script>
-<script src="/static/js/requestForm.js"></script>
-<script src="/static/js/ui.js"></script>
-<script src="/static/js/calendar.js"></script>
+  <!-- Add your scripts in order of dependency -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/profile.js"></script>
+  <script src="/static/js/requests.js"></script>
+  <script src="/static/js/requestForm.js"></script>
+  <script src="/static/js/ui.js"></script>
   <script src="/static/js/calendar.js"></script>
 </body>
 </html>
