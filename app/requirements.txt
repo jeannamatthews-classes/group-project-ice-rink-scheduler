@@ -7,3 +7,5 @@ google-auth==2.38.0
 python-dotenv==0.21.0
 cloud-sql-python-connector==1.2.0
 flask-bcrypt
+firebase-admin 
+Flask-Limiter
