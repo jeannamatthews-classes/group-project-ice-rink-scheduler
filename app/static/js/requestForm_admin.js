@@ -1,3 +1,7 @@
+document.addEventListener('DOMContentLoaded', function() {
+  setupRequestForm();
+});
+
 function setupRequestForm() {
   // Initialize date/time pickers
   const datePicker = flatpickr("#date", {
@@ -45,18 +49,23 @@ function setupRequestForm() {
   // Recurring checkbox event
   document.getElementById("recurring").addEventListener("change", function () {
     const isChecked = this.checked;
-    document.getElementById("recurring-dates").style.display = isChecked ? "block" : "none";
-    document.getElementById("recurrence-type-container").style.display = isChecked ? "block" : "none";
+    const recurringDates = document.getElementById("recurring-dates");
+    const recurrenceTypeContainer = document.getElementById("recurrence-type-container");
+
+    recurringDates.style.display = isChecked ? "block" : "none";
+    recurrenceTypeContainer.style.display = isChecked ? "block" : "none";
     document.getElementById("recurring-end").required = isChecked;
 
     validateForm();
   });
 
   // Form submission
-  document.getElementById("ice-request-form").addEventListener("submit", function(e) {
+  document.getElementById("ice-request-form").addEventListener("submit", function (e) {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     const user = auth.currentUser;
     if (!user) {
@@ -65,13 +74,13 @@ function setupRequestForm() {
     }
 
     const formData = {
-      firebase_uid: user.uid, 
-      rental_name: document.getElementById("name-rental").value,
+      firebase_uid: user.uid,
+      event_name: document.getElementById("name-rental").value,
       additional_desc: document.getElementById("add-desc").value,
       start_date: document.getElementById("date").value,
-      end_date: document.getElementById("recurring").checked ? 
-                document.getElementById("recurring-end").value : 
-                document.getElementById("date").value,
+      end_date: document.getElementById("recurring").checked
+        ? document.getElementById("recurring-end").value
+        : document.getElementById("date").value,
       start_time: document.getElementById("start-time").value,
       end_time: document.getElementById("end-time").value,
       is_recurring: document.getElementById("recurring").checked,
@@ -80,46 +89,50 @@ function setupRequestForm() {
         : null
     };
 
-    fetch('/api/submit_request', {
+    fetch('/api/submit_event', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(formData)
     })
-    .then(response => {
-      if (!response.ok) {
-        return response.json().then(err => { throw err; });
-      }
-      return response.json();
-    })
-    .then(data => {
-      if (data.error) throw new Error(data.error);
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(err => { throw err; });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
 
-      Toastify({
-        text: "Request submitted successfully!",
-        duration: 3000,
-        close: true,
-        gravity: "top",
-        position: "right",
-        backgroundColor: "#4CAF50"
-      }).showToast();
+        Toastify({
+          text: "Event created successfully!",
+          duration: 3000,
+          close: true,
+          gravity: "top",
+          position: "right",
+          backgroundColor: "#4CAF50"
+        }).showToast();
 
-      this.reset();
-      document.getElementById("recurring-dates").style.display = "none";
-      document.getElementById("recurrence-type-container").style.display = "none";
-      loadUserRequests(firebase.auth().currentUser.uid);
-      switchView('pending');
-    })
-    .catch(error => {
-      console.error("Error:", error);
-      Toastify({
-        text: `Error: ${error.message || "Please check your input and try again"}`,
-        duration: 4000,
-        close: true,
-        gravity: "top",
-        position: "right",
-        backgroundColor: "#f44336"
-      }).showToast();
-    });
+        this.reset();
+        document.getElementById("recurring-dates").style.display = "none";
+        document.getElementById("recurrence-type-container").style.display = "none";
+        refreshCalendar();
+      })
+      .catch(error => {
+        console.error("Error:", error);
+
+        Toastify({
+          text: `Error: ${error.message || "Please check your input and try again"}`,
+          duration: 4000,
+          close: true,
+          gravity: "top",
+          position: "right",
+          backgroundColor: "#f44336"
+        }).showToast();
+      });
   });
 }
 
@@ -130,15 +143,12 @@ function validateForm() {
   const endTime = document.getElementById("end-time").value;
   const isRecurring = document.getElementById("recurring").checked;
   const recurringEnd = document.getElementById("recurring-end").value;
-  const recurrenceType = document.getElementById("recurrence-type").value;
 
-  // Clear all error messages
   document.querySelectorAll('.error-message').forEach(el => {
     el.textContent = '';
     el.style.display = 'none';
   });
 
-  // Validate required fields
   if (!document.getElementById("name-rental").value) {
     isValid = false;
   }
@@ -155,17 +165,10 @@ function validateForm() {
     isValid = false;
   }
 
-  if (isRecurring) {
-    if (!recurringEnd) {
-      isValid = false;
-    }
-
-    if (!recurrenceType) {
-      isValid = false;
-    }
+  if (isRecurring && !recurringEnd) {
+    isValid = false;
   }
 
-  // Time logic check
   if (date && startTime && endTime) {
     const startDateTime = new Date(`${date} ${startTime}`);
     const endDateTime = new Date(`${date} ${endTime}`);
@@ -176,7 +179,6 @@ function validateForm() {
     }
   }
 
-  // Date logic check for recurring
   if (isRecurring && date && recurringEnd) {
     const startDate = new Date(date);
     const endDate = new Date(recurringEnd);
@@ -196,3 +198,34 @@ function showError(elementId, message) {
   errorElement.style.display = 'block';
   errorElement.style.color = '#f1c40f';
 }
+
+function refreshCalendar() {
+  const oldScript = document.querySelector('script[src*="calendar.js"]');
+
+  if (oldScript) {
+    const newScript = document.createElement('script');
+    newScript.src = oldScript.src.includes('?')
+      ? `${oldScript.src}&refresh=${Date.now()}`
+      : `${oldScript.src}?refresh=${Date.now()}`;
+
+    if (oldScript.id) {
+      newScript.id = oldScript.id;
+    }
+
+    newScript.onload = () => {
+      console.log('✅ Calendar script reloaded');
+
+      if (typeof IceRinkCalendar !== 'undefined') {
+        new IceRinkCalendar();
+        console.log('🔄 Calendar reinitialized');
+      } else {
+        console.error('❌ IceRinkCalendar not found after reload');
+      }
+    };
+
+    oldScript.parentNode.replaceChild(newScript, oldScript);
+  } else {
+    console.warn('⚠️ Calendar script not found');
+  }
+}
+

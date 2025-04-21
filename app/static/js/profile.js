@@ -33,8 +33,8 @@ async function initProfileModule(user) {
     
   } catch (error) {
     console.error("Error loading user profile:", error);
-    document.getElementById("userName").textContent = "User Profile";
-    document.getElementById("userPhone").textContent = "Phone: Error loading";
+    document.getElementById("userName").textContent = "";
+    document.getElementById("userPhone").textContent = "";
   }
 
   // Set up profile form event listeners

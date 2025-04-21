@@ -12,8 +12,11 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 function logout() {
-  auth.signOut().then(() => window.location.href = "/");
+  auth.signOut().then(() => {
+    window.location.href = "/logout"; // server clears the cookie too
+  });
 }
+
 
 function toggleUserPopup() {
   document.getElementById("userProfilePopup").classList.toggle("show");
