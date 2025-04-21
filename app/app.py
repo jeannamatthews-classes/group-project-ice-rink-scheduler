@@ -12,7 +12,7 @@ from functools import wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import session
-
+import traceback
 
 # Initialize Firebase Admin SDK (only once)
 if not firebase_admin._apps:
@@ -55,20 +55,16 @@ pool = sqlalchemy.create_engine(
     pool_recycle=1800
 )
 
-from flask import request, jsonify
-from functools import wraps
-import traceback
-
 def require_admin(pool):
     """
     Decorator to ensure the request comes from an admin user.
-    Looks for a Firebase ID token stored in a cookie (e.g. 'session' or 'token').
+    Looks for a Firebase ID token stored in a cookie (e.g. 'firebaseToken' or 'token').
     """
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
             # Try to get the token from cookies instead of the Authorization header
-            token = request.cookies.get('session') or request.cookies.get('token')
+            token = request.cookies.get('firebaseToken') or request.cookies.get('token')
             if not token:
                 print("Authorization Error: No token found in cookies")
                 return jsonify({'error': 'Unauthorized - Token missing in cookies'}), 401
@@ -112,8 +108,8 @@ def require_authentication(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         # Extract token from headers or cookies
-        token = request.cookies.get('session') or request.cookies.get('token')
-        
+        token = request.cookies.get('firebaseToken') or request.cookies.get('token')
+        print(token)
         if not token:
             return jsonify({'error': 'Unauthorized - Token missing'}), 401
         
@@ -156,9 +152,9 @@ def check_admin():
             result = conn.execute(query, {"email": user_email}).fetchone()
             is_admin = result is not None
             print(f"Querying ice.admin for '{user_email}', found: {is_admin}")
-            return jsonify({'isAdmin': is_admin})
         session['firebase_uid'] = decoded_token['uid']
         session['is_admin'] = is_admin
+        return jsonify({'isAdmin': is_admin})
     except auth.InvalidIdTokenError:
          return jsonify({'error': 'Unauthorized - Invalid token'}), 401
     except auth.ExpiredIdTokenError:
@@ -171,7 +167,7 @@ def check_admin():
 
 def get_user_uid():
     if session.get('is_admin'):
-        return None  # Skip rate limit
+        return None 
     if 'firebase_uid' in session:
         return f"user:{session['firebase_uid']}"
     return get_remote_address()
@@ -188,7 +184,7 @@ limiter = Limiter(
 def logout():
     session.clear() 
     response = redirect('/')
-    response.set_cookie('session', '', expires=0, path='/', secure=True, httponly=True, samesite='Strict')
+    response.set_cookie('firebaseToken', '', expires=0, path='/', secure=True, httponly=True, samesite='Strict')
     return response
 
 
@@ -310,6 +306,63 @@ def get_user_profile(firebase_uid):
     except Exception as e:
         print("Error fetching user profile:", str(e))
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/user_events/<firebase_uid>')
+@require_authentication
+def get_user_events(firebase_uid):
+    """API endpoint to fetch pending and approved events specific to a user"""
+    try:
+        # Validate the requesting user matches the requested UID
+        if session.get('firebase_uid') != firebase_uid and not session.get('is_admin'):
+            return {"error": "Unauthorized access"}, 403
+            
+        # Calculate date range (1 year back and 6 months forward)
+        today = datetime.now().date()
+        start_date = today - timedelta(days=365)
+        end_date = today + timedelta(days=180)
+        
+        with pool.connect() as conn:
+            # Query rental requests for the specific user - only pending and approved
+            rental_query = sqlalchemy.text("""
+                SELECT 
+                    request_id as id,
+                    rental_name as name,
+                    additional_desc as description,
+                    start_time::text as start_time,
+                    end_time::text as end_time,
+                    start_date::text as start_date,
+                    end_date::text as end_date,
+                    rental_status as status,
+                    is_recurring,
+                    recurrence_rule
+                FROM ice.rental_request
+                INNER JOIN ice.renter ON ice.rental_request.user_id = renter.renter_id
+                WHERE renter.firebase_uid = :firebase_uid
+                AND rental_status IN ('pending', 'approved')
+                AND (
+                    (is_recurring = false AND start_date BETWEEN :start AND :end)
+                    OR 
+                    (is_recurring = true AND end_date >= :start)
+                )
+            """)
+            
+            rentals = conn.execute(
+                rental_query, 
+                {"firebase_uid": firebase_uid, "start": start_date, "end": end_date}
+            ).mappings().all()
+            
+            # Process recurring events
+            all_events = process_recurring_events(
+                rentals,
+                start_date,
+                end_date
+            )
+            
+            return {"events": all_events}
+            
+    except Exception as e:
+        print(f"Error fetching user events: {str(e)}")
+        return {"error": str(e)}, 500
 
 @app.route('/api/submit_request', methods=['POST'])
 @limiter.limit("10 per day")
