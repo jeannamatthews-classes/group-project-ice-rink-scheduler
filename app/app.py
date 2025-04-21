@@ -1,10 +1,23 @@
-from flask import Flask, render_template, request, jsonify 
+from flask import Flask, render_template, request, jsonify, redirect 
 from google.cloud.sql.connector import Connector
 import sqlalchemy
 import os
 from datetime import datetime, timedelta
 import pg8000
 from dotenv import load_dotenv
+from flask import request, jsonify
+from firebase_admin import auth, credentials, initialize_app
+import firebase_admin
+from functools import wraps 
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask import session
+
+
+# Initialize Firebase Admin SDK (only once)
+if not firebase_admin._apps:
+    cred = credentials.Certificate("icerinkscheduling-firebase-adminsdk-fbsvc-97323839f3.json")
+    initialize_app(cred)
 
 load_dotenv('.env')
 
@@ -13,7 +26,7 @@ credential_path = "cloud.json"
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
 
 app = Flask(__name__)
-
+app.secret_key = os.environ.get('SECRET_KEY', 'default_dev_key')
 # Database configuration
 INSTANCE_CONNECTION_NAME = os.environ["INSTANCE_CONNECTION_NAME"]
 DB_USER = os.environ["DB_USER"]
@@ -42,53 +55,198 @@ pool = sqlalchemy.create_engine(
     pool_recycle=1800
 )
 
+from flask import request, jsonify
+from functools import wraps
+import traceback
+
+def require_admin(pool):
+    """
+    Decorator to ensure the request comes from an admin user.
+    Looks for a Firebase ID token stored in a cookie (e.g. 'session' or 'token').
+    """
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            # Try to get the token from cookies instead of the Authorization header
+            token = request.cookies.get('session') or request.cookies.get('token')
+            if not token:
+                print("Authorization Error: No token found in cookies")
+                return jsonify({'error': 'Unauthorized - Token missing in cookies'}), 401
+
+            try:
+                # Verify Firebase ID token
+                decoded_token = auth.verify_id_token(token)
+                user_email = decoded_token.get('email')
+
+                if not user_email:
+                    print(f"Authorization Error: Email missing in token payload (UID: {decoded_token.get('uid')})")
+                    return jsonify({'error': 'Unauthorized - Email missing in token'}), 401
+
+                with pool.connect() as conn:
+                    query = sqlalchemy.text("SELECT 1 FROM ice.admin WHERE email = :email")
+                    result = conn.execute(query, {"email": user_email}).fetchone()
+                    is_admin = result is not None
+
+                if not is_admin:
+                    print(f"Access Denied: '{user_email}' is not in ice.admin")
+                    return jsonify({'error': 'Forbidden - Not an administrator'}), 403
+
+                print(f"Access Granted: '{user_email}' accessed {f.__name__}")
+                return f(*args, **kwargs)
+
+            except auth.ExpiredIdTokenError:
+                print("Token expired")
+                return jsonify({'error': 'Unauthorized - Token expired'}), 401
+            except auth.InvalidIdTokenError as e:
+                print(f"Invalid token: {e}")
+                return jsonify({'error': 'Unauthorized - Invalid token'}), 401
+            except Exception as e:
+                print("Unexpected error in require_admin:")
+                traceback.print_exc()
+                return jsonify({'error': 'Internal server error'}), 500
+
+        return wrapper
+    return decorator
+
+def require_authentication(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        # Extract token from headers or cookies
+        token = request.cookies.get('session') or request.cookies.get('token')
+        
+        if not token:
+            return jsonify({'error': 'Unauthorized - Token missing'}), 401
+        
+        try:
+            # Verify Firebase token
+            decoded_token = auth.verify_id_token(token)
+            request.user_email = decoded_token.get('email')  # You can store user info in the request object
+            return f(*args, **kwargs)
+        except auth.InvalidIdTokenError:
+            return jsonify({'error': 'Unauthorized - Invalid token'}), 401
+        except auth.ExpiredIdTokenError:
+            return jsonify({'error': 'Unauthorized - Token expired'}), 401
+        except Exception as e:
+            return jsonify({'error': 'Unauthorized - Internal error'}), 500
+    
+    return wrapper
+
+
+@app.route('/check-admin', methods=['POST'])
+def check_admin():
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Invalid authorization header - No token provided'}), 401
+
+    token = auth_header.split('Bearer ')[1]
+
+    try:
+        # Verify the token first
+        decoded_token = auth.verify_id_token(token)
+        user_email = decoded_token.get('email') # Use email from the verified token
+
+        if not user_email:
+            return jsonify({'error': 'Unauthorized - Email missing in token'}), 401
+
+        print(f"--- /check-admin (token verified) ---")
+        print(f"Checking admin status for email from token: {user_email}")
+
+        with pool.connect() as conn:
+            query = sqlalchemy.text("SELECT 1 FROM ice.admin WHERE email = :email")
+            result = conn.execute(query, {"email": user_email}).fetchone()
+            is_admin = result is not None
+            print(f"Querying ice.admin for '{user_email}', found: {is_admin}")
+            return jsonify({'isAdmin': is_admin})
+        session['firebase_uid'] = decoded_token['uid']
+        session['is_admin'] = is_admin
+    except auth.InvalidIdTokenError:
+         return jsonify({'error': 'Unauthorized - Invalid token'}), 401
+    except auth.ExpiredIdTokenError:
+         return jsonify({'error': 'Unauthorized - Token expired'}), 401
+    except Exception as e:
+        import traceback
+        print("Exception occurred in /check-admin:", e)
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+def get_user_uid():
+    if session.get('is_admin'):
+        return None  # Skip rate limit
+    if 'firebase_uid' in session:
+        return f"user:{session['firebase_uid']}"
+    return get_remote_address()
+
+
+# Initialize the limiter with the custom key function
+limiter = Limiter(
+    key_func=get_user_uid,
+    app=app,
+    default_limits=[]  # we'll add per-route limits
+)
+
+@app.route('/logout')
+def logout():
+    session.clear() 
+    response = redirect('/')
+    response.set_cookie('session', '', expires=0, path='/', secure=True, httponly=True, samesite='Strict')
+    return response
+
+
 @app.route('/')
 def home():
-    """Render the main calendar page"""
     return render_template('homepage.html')
 
 @app.route('/u')
+@require_authentication
 def u():
-    """Render the main calendar page"""
     return render_template('userrequest.html')
+
+@app.route("/admin")
+@require_admin(pool)
+def admin():
+    return render_template("admin.html")
 
 @app.route('/signup')
 def signup():
-    """Render the signup page"""
     return render_template('signup.html')
 
 @app.route("/resetpassword")
 def reset_password():
-    """Render the reset password page"""
     return render_template("resetpassword.html")
-
 
 @app.route('/api/register', methods=['POST'])
 def register_user():
-    """Register a new user in the database"""
+    """Securely register a new user after verifying Firebase ID token"""
     try:
+        # Verify Firebase ID token
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Missing or invalid Authorization header"}), 401
+
+        id_token = auth_header.split("Bearer ")[1]
+        decoded_token = auth.verify_id_token(id_token)
+        firebase_uid = decoded_token['uid']
+        email = decoded_token['email']
+
+        # Get form data
         data = request.get_json()
-        
-        required_fields = ['first_name', 'last_name', 'renter_email', 'phone', 'firebase_uid']
+        required_fields = ['first_name', 'last_name', 'phone']
         for field in required_fields:
             if field not in data:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
-        
+
+        # Prevent duplicate accounts
         with pool.connect() as conn:
-            # Check if user already exists
             check_query = sqlalchemy.text("""
                 SELECT renter_id FROM ice.renter 
                 WHERE renter_email = :email OR firebase_uid = :uid
             """)
-            existing_user = conn.execute(
-                check_query,
-                {"email": data['renter_email'], "uid": data['firebase_uid']}
-            ).fetchone()
-            
+            existing_user = conn.execute(check_query, {"email": email, "uid": firebase_uid}).fetchone()
+
             if existing_user:
                 return jsonify({"error": "User already exists"}), 409
-            
-            # Insert new user
+
+            # Insert new verified user
             insert_query = sqlalchemy.text("""
                 INSERT INTO ice.renter 
                 (first_name, last_name, renter_email, phone, firebase_uid, created_at)
@@ -101,21 +259,28 @@ def register_user():
                 {
                     "first_name": data['first_name'],
                     "last_name": data['last_name'],
-                    "email": data['renter_email'],
+                    "email": email,
                     "phone": data['phone'],
-                    "uid": data['firebase_uid']
+                    "uid": firebase_uid
                 }
             )
             conn.commit()
-            
-            return jsonify({"message": "User registered successfully", "renter_id": result.fetchone()[0]})
-            
+
+            return jsonify({
+                "message": "User registered successfully",
+                "renter_id": result.fetchone()[0]
+            })
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
 
+
 @app.route('/api/user_profile/<firebase_uid>')
+@require_authentication
 def get_user_profile(firebase_uid):
     """Get user profile information from the renter table"""
     try:
@@ -147,6 +312,8 @@ def get_user_profile(firebase_uid):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/submit_request', methods=['POST'])
+@limiter.limit("10 per day")
+@require_authentication
 def submit_request():
     """Submit a new ice slot request"""
     try:
@@ -214,7 +381,77 @@ def submit_request():
         print("Error submitting request:", str(e))
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/submit_event', methods=['POST'])
+@require_admin(pool)
+def submit_event():
+    """Submit a new ice slot request"""
+    try:
+        data = request.get_json()
+        print("Received request data:", data)
+        
+        required_fields = ['firebase_uid', 'event_name', 'start_date', 'end_date', 
+                         'start_time', 'end_time', 'is_recurring']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+        
+        with pool.connect() as conn:
+            # Get user_id from firebase_uid
+            user_query = sqlalchemy.text("""
+                SELECT admin_id FROM ice.admin
+                WHERE firebase_uid = :firebase_uid
+            """)
+            user_result = conn.execute(
+                user_query,
+                {"firebase_uid": data['firebase_uid']}
+            ).fetchone()
+            
+            if not user_result:
+                return jsonify({"error": "User not found"}), 404
+                
+            admin_id = user_result[0]
+            
+            # Insert the new request
+            insert_query = sqlalchemy.text("""
+                INSERT INTO ice.admin_event 
+                (admin_id, event_name, additional_desc, start_date, end_date, 
+                 start_time, end_time, is_recurring, 
+                 recurrence_rule, created_date)
+                VALUES 
+                (:admin_id, :event_name, :additional_desc, :start_date, :end_date,
+                 :start_time, :end_time, :is_recurring,
+                 CASE WHEN :is_recurring THEN :recurrence_rule ELSE NULL END,
+                 NOW())
+                RETURNING event_id
+            """)
+            
+            result = conn.execute(
+                insert_query,
+                {
+                    "admin_id": admin_id,
+                    "event_name": data['event_name'],
+                    "additional_desc": data.get('additional_desc', ''),
+                    "start_date": data['start_date'],
+                    "end_date": data['end_date'],
+                    "start_time": data['start_time'],
+                    "end_time": data['end_time'],
+                    "is_recurring": data['is_recurring'],
+                    "recurrence_rule": data.get('recurrence_rule', 'daily')
+                }
+            )
+            conn.commit()
+            
+            return jsonify({
+                "message": "Request submitted successfully",
+                "request_id": result.fetchone()[0]
+            })
+            
+    except Exception as e:
+        print("Error submitting request:", str(e))
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/user_requests/<firebase_uid>')
+@require_authentication
 def get_user_requests(firebase_uid):
     """Get all requests (pending, accepted, and declined) for a specific user"""
     if not firebase_uid or not isinstance(firebase_uid, str):
@@ -253,7 +490,7 @@ def get_user_requests(firebase_uid):
                     TO_CHAR(end_time, 'HH12:MI AM') as end_time,
                     is_recurring, 
                     recurrence_rule,
-                    TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                    request_date,
                     'pending' as request_status,
                     NULL as declined_reason
                 FROM ice.rental_request
@@ -279,7 +516,7 @@ def get_user_requests(firebase_uid):
                     TO_CHAR(end_time, 'HH12:MI AM') as end_time,
                     is_recurring, 
                     recurrence_rule,
-                    TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                    request_date,
                     'approved' as request_status,
                     NULL as declined_reason
                 FROM ice.rental_request
@@ -305,7 +542,7 @@ def get_user_requests(firebase_uid):
                     TO_CHAR(end_time, 'HH12:MI AM') as end_time,
                     is_recurring, 
                     recurrence_rule,
-                    TO_CHAR(request_date, 'MM/DD/YYYY HH12:MI AM') as request_date,
+                    request_date,
                     'declined' as request_status,
                     declined_reason
                 FROM ice.rental_request
@@ -330,7 +567,266 @@ def get_user_requests(firebase_uid):
         print(f"Unexpected error fetching requests for {firebase_uid}: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
 
+@app.route('/api/admin/events')
+@require_admin(pool)
+def get_admin_event():
+    """Get all admin events (which are considered pre-approved)"""
+    try:
+        with pool.connect() as conn:
+            # Convert RowMapping to dictionary for JSON serialization
+            def row_to_dict(row):
+                return {key: value for key, value in row._mapping.items()}
+            
+            # Get all admin events
+            query = sqlalchemy.text("""
+                SELECT 
+                    event_id,
+                    event_name as rental_name,
+                    additional_desc as description,
+                    TO_CHAR(start_date, 'MM/DD/YYYY') as start_date,
+                    TO_CHAR(end_date, 'MM/DD/YYYY') as end_date,
+                    TO_CHAR(start_time, 'HH12:MI AM') as start_time,
+                    TO_CHAR(end_time, 'HH12:MI AM') as end_time,
+                    is_recurring,
+                    recurrence_rule,
+                    created_date,
+                    admin_id
+                FROM ice.admin_event
+                ORDER BY start_date, start_time
+            """)
+            
+            events = [row_to_dict(row) for row in conn.execute(query)]
+            
+            return jsonify({
+                "events": events
+            })
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error fetching admin events: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        print(f"Unexpected error fetching admin events: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+@app.route('/api/admin/requests')
+@require_admin(pool)
+def get_all_requests():
+    """Get all rental requests with user information for admin view"""
+    try:
+        with pool.connect() as conn:
+            # Convert RowMapping to dictionary for JSON serialization
+            def row_to_dict(row):
+                return {key: value for key, value in row._mapping.items()}
+            
+            # Get all requests with user information
+            query = sqlalchemy.text("""
+                SELECT 
+                    rr.request_id, 
+                    rr.rental_name, 
+                    rr.additional_desc, 
+                    TO_CHAR(rr.start_date, 'YYYY-MM-DD') as start_date,
+                    TO_CHAR(rr.end_date, 'YYYY-MM-DD') as end_date,
+                    TO_CHAR(rr.start_time, 'HH12:MI AM') as start_time,
+                    TO_CHAR(rr.end_time, 'HH12:MI AM') as end_time,
+                    rr.is_recurring, 
+                    rr.recurrence_rule,
+                    rr.request_date as request_date,
+                    CASE 
+                        WHEN rr.rental_status = 'pending' THEN 'pending'
+                        WHEN rr.rental_status = 'approved' THEN 'approved'
+                        WHEN rr.rental_status = 'denied' THEN 'declined'
+                        ELSE rr.rental_status
+                    END as request_status,
+                    rr.declined_reason,
+                    r.renter_email as user_email,
+                    CONCAT(r.first_name, ' ', r.last_name) as user_name,
+                    r.phone as user_phone
+                FROM ice.rental_request rr
+                JOIN ice.renter r ON rr.user_id = r.renter_id
+                ORDER BY 
+                    CASE WHEN rr.rental_status = 'pending' THEN 1
+                         WHEN rr.rental_status = 'approved' THEN 2
+                         ELSE 3 END,
+                    rr.start_date, 
+                    rr.start_time
+            """)
+            
+            requests = [row_to_dict(row) for row in conn.execute(query)]
+            
+            return jsonify({
+                "requests": requests,
+                "count": len(requests),
+                "success": True
+            })
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error fetching all requests: {str(e)}")
+        return jsonify({
+            "error": "Database error occurred",
+            "success": False
+        }), 500
+    except Exception as e:
+        print(f"Unexpected error fetching all requests: {str(e)}")
+        return jsonify({
+            "error": "An unexpected error occurred",
+            "success": False
+        }), 500
+
+@app.route('/api/admin/events/delete/<event_id>', methods=['DELETE'])
+@require_admin(pool)
+def delete_admin_event(event_id):
+    """Delete an admin event"""
+    try:
+        with pool.connect() as conn:
+            # Delete the event
+            delete_query = sqlalchemy.text("""
+                DELETE FROM ice.admin_event
+                WHERE event_id = :event_id
+                RETURNING event_id
+            """)
+            
+            result = conn.execute(
+                delete_query,
+                {"event_id": event_id}
+            ).fetchone()
+            
+            if not result:
+                return jsonify({"error": "Event not found"}), 404
+                
+            conn.commit()
+            return jsonify({"success": True, "message": "Event deleted"})
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error deleting event {event_id}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        print(f"Unexpected error deleting event {event_id}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+
+@app.route('/api/admin/events/update/<eventId>', methods=['POST'])  # Use POST or PUT for updates
+@require_admin(pool)
+def edit_event(eventId):
+    """Edit end date of a recurring request"""
+    try:
+        data = request.get_json()
+        new_end_date = data.get("end_date")  # Expected in 'YYYY-MM-DD' format
+
+        if not new_end_date:
+            return jsonify({"error": "Missing 'end_date' in request body"}), 400
+
+        with pool.connect() as conn:
+            update_query = sqlalchemy.text("""
+                UPDATE ice.admin_event
+                SET end_date = :end_date
+                WHERE event_id = :event_id
+                RETURNING event_id
+            """)
+            
+            result = conn.execute(
+                update_query,
+                {
+                    "end_date": new_end_date,
+                    "event_id": eventId
+                }
+            ).fetchone()
+
+            if not result:
+                return jsonify({"error": "Request not found"}), 404
+
+            conn.commit()
+            return jsonify({"success": True, "message": "Request updated"})
+
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error updating request {eventId}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        print(f"Unexpected error updating request {eventId}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+
+@app.route('/api/admin/approve_request/<request_id>', methods=['POST'])
+@require_admin(pool)
+def approve_request(request_id):
+    """Admin approves a rental request"""
+    try:
+        with pool.connect() as conn:
+            # Update request status to approved and set decision date
+            update_query = sqlalchemy.text("""
+                UPDATE ice.rental_request
+                SET rental_status = 'approved',
+                    status_change_date = CURRENT_TIMESTAMP
+                WHERE request_id = :request_id
+                RETURNING request_id
+            """)
+            
+            result = conn.execute(
+                update_query,
+                {"request_id": request_id}
+            ).fetchone()
+            
+            if not result:
+                return jsonify({"error": "Request not found"}), 404
+                
+            conn.commit()
+            return jsonify({
+                "success": True,
+                "message": "Request approved successfully",
+                "request_id": request_id
+            })
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error approving request {request_id}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        print(f"Unexpected error approving request {request_id}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+@app.route('/api/admin/decline_request/<request_id>', methods=['POST'])
+@require_admin(pool)
+def decline_request(request_id):
+    """Admin declines a rental request with a reason"""
+    reason = request.json.get('reason', '')
+    
+    if not reason:
+        return jsonify({"error": "Reason is required"}), 400
+        
+    try:
+        with pool.connect() as conn:
+            # Update request status to declined with reason and decision date
+            update_query = sqlalchemy.text("""
+                UPDATE ice.rental_request
+                SET rental_status = 'denied',
+                    declined_reason = :reason,
+                    status_change_date = CURRENT_TIMESTAMP
+                WHERE request_id = :request_id
+                RETURNING request_id
+            """)
+            
+            result = conn.execute(
+                update_query,
+                {"request_id": request_id, "reason": reason}
+            ).fetchone()
+            
+            if not result:
+                return jsonify({"error": "Request not found"}), 404
+                
+            conn.commit()
+            return jsonify({
+                "success": True,
+                "message": "Request declined successfully",
+                "request_id": request_id
+            })
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error declining request {request_id}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        print(f"Unexpected error declining request {request_id}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
 @app.route('/api/delete_request/<request_id>', methods=['DELETE'])
+@require_authentication
 def delete_request(request_id):
     """Delete a specific request"""
     try:
@@ -421,14 +917,14 @@ def get_events():
                 )
             """)
             
-            admin_events = conn.execute(
+            admin_event = conn.execute(
                 admin_query,
                 {"start": start_date, "end": end_date}
             ).mappings().all()
             
             # Combine and process recurring events
             all_events = process_recurring_events(
-                rentals + admin_events,
+                rentals + admin_event,
                 start_date,
                 end_date
             )
@@ -507,6 +1003,7 @@ def format_event(event, date):
     }
 
 @app.route('/api/update_profile', methods=['POST'])
+@require_authentication
 def update_profile():
     """Update user profile information"""
     try:
