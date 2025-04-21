@@ -72,7 +72,6 @@
         <input type="password" id="confirm-password" required>
         <button type="submit">Sign Up</button>
         <div class="error" id="error-message"></div>
-        <div class="warning" id="warning-message"></div>
         <div class="success" id="success-message"></div>
         <div class="action-links">
           <a href="/">Already have an account? Log in</a>
@@ -116,7 +115,7 @@
       if (currentUser) {
         currentUser.sendEmailVerification().then(() => {
           alert("Verification email sent.");
-        }).catch((err) => {
+        }).catch(() => {
           alert("Error sending verification email.");
         });
       }
@@ -145,26 +144,24 @@
       }
 
       try {
-        // Create user in Firebase Auth
         const userCred = await auth.createUserWithEmailAndPassword(email, password);
         currentUser = userCred.user;
 
-        // Send verification email
         await currentUser.sendEmailVerification();
 
-        // Save user data to Cloud SQL via your Flask backend
+        const idToken = await currentUser.getIdToken();
+
         const userData = {
           first_name: firstName,
           last_name: lastName,
-          renter_email: email,
-          phone: phone,
-          firebase_uid: currentUser.uid
+          phone: phone
         };
 
         const response = await fetch('/api/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`  // 🔐 Secure token!
           },
           body: JSON.stringify(userData)
         });
@@ -175,7 +172,6 @@
           throw new Error(result.error || 'Failed to save user data');
         }
 
-        // Show verification message
         userEmailSpan.textContent = email;
         signupForm.style.display = "none";
         verificationMessage.style.display = "block";

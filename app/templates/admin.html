@@ -2,27 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="description" content="User Loggedin">
+  <meta name="description" content="Admin Loggedin">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ice Slot Request</title>
+  <title>ADMIN</title>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" type="text/css" href="static/styles.css">
+  <link rel="stylesheet" type="text/css" href="static/addStyles.css">
+  </style>
 </head>
+
 <body>
   <div class="main-container">
     <!-- Request Form -->
     <div class="request-form-container">
-      <h1>Ice Slot Request</h1>
+      <h1>Admin</h1>
 
       <div class="view-buttons">
-        <button class="active" onclick="switchView('request')">Request</button>
+        <button class="active" onclick="switchView('request')">Create</button>
         <button onclick="switchView('pending')">Pending</button>
         <button onclick="switchView('accepted')">Accepted</button>
         <button onclick="switchView('declined')">Declined</button>
       </div>
+
       <div id="request" class="view active">
         <form id="ice-request-form">
           <label for="name-rental">Rental Name</label>
@@ -57,10 +61,11 @@
                 <option value="daily">Daily</option>
               </select>
           </div>
+        
           <div id="recurring-dates">
             <label for="recurring-end">Recurring End Date</label>
             <input type="text" name="recurring-end" id="recurring-end" placeholder="Select end date">
-
+            <div id="recurring-end-error" class="error-message"></div>
           </div>
 
           <button type="submit">Submit</button>
@@ -106,7 +111,7 @@
   </div>
 
   <div class="user-profile-popup" id="userProfilePopup">
-    <h3>User Profile</h3>
+    <h3>Admin Profile</h3>
     <p id="userName">Loading...</p>
     <p id="userEmail">Loading...</p>
     <p id="userPhone">Loading...</p>
@@ -141,6 +146,7 @@
       </form>
     </div>
   </div>
+
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   <!-- Firebase SDK -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-app-compat.min.js"></script>
@@ -153,9 +159,9 @@
   <!-- Add your scripts in order of dependency -->
   <script src="/static/js/auth.js"></script>
   <script src="/static/js/profile.js"></script>
-  <script src="/static/js/user_requests.js"></script>
-  <script src="/static/js/requestForm.js"></script>
+  <script src="/static/js/admin_requests.js"></script>
+  <script src="/static/js/requestForm_admin.js"></script>
   <script src="/static/js/ui.js"></script>
-  <script src="/static/js/userCalendar.js"></script>
+  <script src="/static/js/calendar.js"></script>
 </body>
 </html>

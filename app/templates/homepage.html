@@ -201,6 +201,13 @@
       font-size: 14px;
       margin-top: 10px;
     }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      margin-top: 10px;
+      color: #0066ff;
+    }
   </style>
 </head>
 <body>
@@ -227,6 +234,7 @@
         <input type="text" id="loginEmail" placeholder="Email" />
         <input type="password" id="loginPassword" placeholder="Password" />
         <button id="login">Login</button>
+        <div class="loading" id="loginLoading">Logging in...</div>
         <div class="error" id="loginError"></div>
         <button id="resetPassword" onclick="window.location.href='resetpassword'">Reset Password</button>
         <div class="separator"></div>
@@ -238,49 +246,7 @@
   <!-- Firebase SDK -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-app-compat.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-auth-compat.min.js"></script>
-
-    <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyA_VXKD9_HiLyNZnzwAn7UB9RPrvMJSMPM",
-      authDomain: "icerinkscheduling.firebaseapp.com",
-      projectId: "icerinkscheduling",
-      storageBucket: "icerinkscheduling.appspot.com",
-      messagingSenderId: "887329525211",
-      appId: "1:887329525211:web:75bc17a1639dfdc5d4abfe"
-    }; 
-
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-
-    document.getElementById("login").addEventListener("click", async () => {
-      const email = document.getElementById("loginEmail").value.trim();
-      const password = document.getElementById("loginPassword").value;
-      const errorDiv = document.getElementById("loginError");
-      errorDiv.textContent = "";
-
-      try {
-        const userCredential = await auth.signInWithEmailAndPassword(email, password);
-        const user = userCredential.user;
-
-        if (!user.emailVerified) {
-          errorDiv.textContent = "Please verify your email before logging in.";
-          await auth.signOut();
-          return;
-        }
-
-        // ✅ Redirect to Flask route after login
-        window.location.href = "/u";
-      } catch (error) {
-        if (error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
-          errorDiv.textContent = "Invalid email or password.";
-        } else {
-          errorDiv.textContent = error.message;
-        }
-      }
-    });
-  </script>
-
+  <script src="/static/js/login.js"></script>
   <script src="/static/js/calendar.js"></script>
 </body>
 </html>
-
