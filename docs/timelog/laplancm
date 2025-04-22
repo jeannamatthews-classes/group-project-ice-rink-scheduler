@@ -8,4 +8,9 @@ Did not do much before this. Maybe a zoom call with the group? Before that I was
 2025 April 1, 180, redoing the erd diagram along with the relational schema and creating the base database model code, all located in design doc. 60 min of it was a meeting with my team
 2025 April 9, 120, In person meeting with group members who are here, fixed the relational shcema, erd, and database code in the design docs and created the file for the old design docs. fixed the base calendar code so it worked without my json sample database because we cant use that anyway because we are grabbing information from a live database.
 2025 Apr 11, 70,  Pre-RAPS meeting, and Presenting in Raps
+2025 April 16, 160, Trying to make Admin connect to backend. Ended up failing and Satya picked up where I ended. (admin.html, admin_requests.json) I think where I failed was the admin firebase sdk. my code got close but never to operating level.
+2025 April 16, 60, I joined our group meeting over zoom.
+2025 April 21, 30, Quick group meeting over zoom discussing new changes to the admin database connection. 
+2025 April 22, 60, group meeting going over the presentation, which didnt work anyway bc satya couldnt be heard on zoom because the computer was not set up properly
+
 
