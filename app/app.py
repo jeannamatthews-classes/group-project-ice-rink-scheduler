@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, redirect 
+from flask import Flask, render_template, request, jsonify, redirect, Blueprint 
+import json
 from google.cloud.sql.connector import Connector
 import sqlalchemy
 import os
@@ -13,6 +14,13 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import session
 import traceback
+import base64
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import stripe
 
 # Initialize Firebase Admin SDK (only once)
 if not firebase_admin._apps:
@@ -54,6 +62,72 @@ pool = sqlalchemy.create_engine(
     pool_timeout=30,
     pool_recycle=1800
 )
+
+admin_routes = Blueprint('admin_routes', __name__)
+
+# Set up Stripe API key 
+stripe.api_key = os.environ.get('STRIPE_API_KEY')
+
+# Gmail API setup
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+CREDENTIALS_FILE = 'credentials.json' # Your OAuth client secrets file
+TOKEN_FILE = 'token.json' # File to store the user's access and refresh tokens
+gmail_service = None
+
+def get_gmail_service():
+    global gmail_service
+
+    if gmail_service:
+        return gmail_service
+
+    creds = None
+    if os.path.exists(TOKEN_FILE):
+        try:
+            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+        except Exception as e:
+            print(f"Error loading credentials: {e}")
+            creds = None
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                print("Access token refreshed.")
+                with open(TOKEN_FILE, 'w') as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                print(f"Failed to refresh token: {e}")
+                creds = None
+
+        if not creds:
+            # Full re-authentication needed
+            if not os.path.exists(CREDENTIALS_FILE):
+                print(f"Missing credentials file: {CREDENTIALS_FILE}")
+                return None
+
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    CREDENTIALS_FILE, SCOPES
+                )
+                creds = flow.run_local_server(
+                    port=8080,
+                    access_type='offline',
+                    prompt='consent'
+                )
+                with open(TOKEN_FILE, 'w') as token:
+                    token.write(creds.to_json())
+                print("New credentials obtained and saved.")
+            except Exception as e:
+                print(f"Error during re-authentication: {e}")
+                return None
+
+    try:
+        gmail_service = build('gmail', 'v1', credentials=creds)
+        return gmail_service
+    except Exception as e:
+        print(f"Error building Gmail service: {e}")
+        return None
+
 
 def require_admin(pool):
     """
@@ -442,7 +516,7 @@ def submit_event():
         data = request.get_json()
         print("Received request data:", data)
         
-        required_fields = ['firebase_uid', 'event_name', 'start_date', 'end_date', 
+        required_fields = ['firebase_uid', 'rental_name', 'start_date', 'end_date', 
                          'start_time', 'end_time', 'is_recurring']
         for field in required_fields:
             if field not in data:
@@ -482,15 +556,14 @@ def submit_event():
                 insert_query,
                 {
                     "admin_id": admin_id,
-                    "event_name": data['event_name'],
+                    "event_name": data['rental_name'],
                     "additional_desc": data.get('additional_desc', ''),
                     "start_date": data['start_date'],
                     "end_date": data['end_date'],
                     "start_time": data['start_time'],
                     "end_time": data['end_time'],
                     "is_recurring": data['is_recurring'],
-                    "recurrence_rule": data.get('recurrence_rule', 'daily')
-                }
+                    "recurrence_rule": data.get('recurrence_rule', 'daily')                }
             )
             conn.commit()
             
@@ -690,6 +763,7 @@ def get_all_requests():
                         WHEN rr.rental_status = 'denied' THEN 'declined'
                         ELSE rr.rental_status
                     END as request_status,
+                    rr.amount as amount,
                     rr.declined_reason,
                     r.renter_email as user_email,
                     CONCAT(r.first_name, ' ', r.last_name) as user_name,
@@ -801,40 +875,131 @@ def edit_event(eventId):
 @app.route('/api/admin/approve_request/<request_id>', methods=['POST'])
 @require_admin(pool)
 def approve_request(request_id):
-    """Admin approves a rental request"""
+    """Approve a rental request and set an amount"""
     try:
-        with pool.connect() as conn:
-            # Update request status to approved and set decision date
-            update_query = sqlalchemy.text("""
+        data = request.get_json() or {}
+        amount = data.get('amount')  # Get amount from request body
+        
+        with pool.connect() as conn:  # Establishing the connection here
+            # Update the request status and amount
+            update_query = sqlalchemy.text(""" 
                 UPDATE ice.rental_request
-                SET rental_status = 'approved',
-                    status_change_date = CURRENT_TIMESTAMP
+                SET rental_status = 'approved', 
+                    approved_date = NOW(),
+                    amount = :amount
                 WHERE request_id = :request_id
                 RETURNING request_id
             """)
             
             result = conn.execute(
                 update_query,
-                {"request_id": request_id}
-            ).fetchone()
-            
-            if not result:
-                return jsonify({"error": "Request not found"}), 404
-                
+                {
+                    "request_id": request_id,
+                    "amount": amount if amount is not None else None
+                }
+            )
             conn.commit()
-            return jsonify({
-                "success": True,
-                "message": "Request approved successfully",
-                "request_id": request_id
-            })
-            
-    except sqlalchemy.exc.SQLAlchemyError as e:
-        print(f"Database error approving request {request_id}: {str(e)}")
-        return jsonify({"error": "Database error occurred"}), 500
-    except Exception as e:
-        print(f"Unexpected error approving request {request_id}: {str(e)}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
 
+        return jsonify({
+            "message": "Request approved successfully",
+            "request_id": request_id
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/requests/update_amount/<request_id>', methods=['POST'])
+@require_admin(pool)
+def update_request_amount(request_id):
+    """Update the amount for an approved rental request"""
+    try:
+        data = request.get_json() or {}
+        amount = data.get('amount')
+        
+        if amount is None:
+            return jsonify({"error": "Amount is required"}), 400
+        
+        with pool.connect() as conn:  # Establishing the connection here
+            # Update only the amount for the existing approved request
+            update_query = sqlalchemy.text("""
+                UPDATE ice.rental_request
+                SET amount = :amount
+                WHERE request_id = :request_id
+                AND rental_status = 'approved'
+                RETURNING request_id
+            """)
+            
+            result = conn.execute(
+                update_query,
+                {
+                    "request_id": request_id,
+                    "amount": amount
+                }
+            )
+            conn.commit()
+
+        # Check if any row was updated
+        if result.rowcount == 0:
+            return jsonify({"error": "Request not found or not in approved status"}), 404
+        
+        return jsonify({
+            "message": "Amount updated successfully",
+            "request_id": request_id,
+            "amount": amount
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/events/update_amount/<event_id>', methods=['POST'])
+@require_admin(pool)
+def update_event_amount(event_id):
+    """Update the amount for an admin event"""
+    try:
+        data = request.get_json() or {}
+        amount = data.get('amount')
+        
+        if amount is None:
+            return jsonify({"error": "Amount is required"}), 400
+        
+        with pool.connect() as conn:
+            # Update only the amount for the existing admin event
+            update_query = sqlalchemy.text("""
+                UPDATE ice.admin_event
+                SET amount = :amount
+                WHERE event_id = :event_id
+                RETURNING event_id
+            """)
+            
+            result = conn.execute(
+                update_query,
+                {
+                    "event_id": event_id,
+                    "amount": amount
+                }
+            )
+            conn.commit()
+
+        # Check if any row was updated
+        if result.rowcount == 0:
+            return jsonify({"error": "Admin event not found"}), 404
+        
+        return jsonify({
+            "message": "Amount updated successfully",
+            "event_id": event_id,
+            "amount": amount
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+        
 @app.route('/api/admin/decline_request/<request_id>', methods=['POST'])
 @require_admin(pool)
 def decline_request(request_id):
@@ -1102,6 +1267,199 @@ def update_profile():
     except Exception as e:
         print("Error updating profile:", str(e))
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/send_invoice', methods=['POST'])
+@require_admin(pool)
+def send_invoice():
+    """Send invoice via Stripe and Gmail with payment link validity check via Stripe API"""
+    try:
+        data = request.json
+
+        # Validate required fields
+        required_fields = ['request_id', 'user_email', 'amount', 'rental_name', 'start_date', 'end_date']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        request_id = data['request_id']
+        user_email = data['user_email']
+        amount = float(data['amount'])
+        rental_name = data['rental_name']
+        start_date = data['start_date']
+        end_date = data['end_date']
+
+        # Check if there's already a payment link or invoice for this request
+        with pool.connect() as conn:
+            check_query = sqlalchemy.text(
+                """
+                SELECT 
+                    payment_link,
+                    paid
+                FROM ice.rental_request 
+                WHERE request_id = :request_id
+                """
+            )
+            result = conn.execute(check_query, {"request_id": request_id}).fetchone()
+
+        create_new_invoice = True
+        payment_link = None
+
+        if result and result[0]:  # If payment_link exists
+            existing_link = result[0]
+            paid = result[1]
+
+            if paid:
+                print(f"Request {request_id} is already paid. No email needed.")
+                return jsonify({
+                    'success': True,
+                    'message': 'Request is already paid. No invoice sent.',
+                    'paid': True
+                })
+            else:
+                payment_link = existing_link
+                create_new_invoice = False
+                print(f"Reusing existing invoice link for request {request_id}")
+
+        # Create a new Invoice if needed
+        if create_new_invoice:
+            # 1. Create a Customer (or you can look up existing by email if you want)
+            customer = stripe.Customer.create(
+                email=user_email,
+                metadata={"request_id": str(request_id)}
+            )
+
+            # 2. Create Invoice Item
+            stripe.InvoiceItem.create(
+                customer=customer.id,
+                amount=int(amount * 100),  # Amount in cents
+                currency='usd',
+                description=f'Rental: {rental_name} ({start_date} to {end_date})'
+            )
+
+            # 3. Create Invoice
+            invoice = stripe.Invoice.create(
+                customer=customer.id,
+                collection_method='send_invoice',
+                days_until_due=7,  # Due in 7 day
+                metadata={"request_id": str(request_id)}
+            )
+
+            # 4. Finalize the Invoice
+            finalized_invoice = stripe.Invoice.finalize_invoice(invoice.id)
+
+            payment_link = finalized_invoice.hosted_invoice_url
+
+            # Update DB with payment link and invoice id
+            with pool.connect() as conn:
+                update_query = sqlalchemy.text(
+                    """
+                    UPDATE ice.rental_request 
+                    SET payment_link = :payment_link
+                    WHERE request_id = :request_id
+                    """
+                )
+                conn.execute(update_query, {
+                    "payment_link": payment_link,
+                    "request_id": request_id
+                })
+                conn.commit()
+
+            print(f"Created new invoice for request {request_id}")
+
+        # Send the email with the invoice link
+        email_subject = f"Payment Invoice for {rental_name}"
+        email_body = f"""
+        <html>
+        <body>
+            <h2>Payment Invoice</h2>
+            <p>Thank you for your rental request!</p>
+            <p><strong>Rental:</strong> {rental_name}</p>
+            <p><strong>Dates:</strong> {start_date} to {end_date}</p>
+            <p><strong>Amount Due:</strong> ${amount:.2f}</p>
+            <p>Please click the link below to view and pay your invoice:</p>
+            <p><a href="{payment_link}">View Invoice</a></p>
+            <p>If you have any questions, please contact us.</p>
+            <p>Thank you!</p>
+        </body>
+        </html>
+        """
+
+        # Send email via Gmail API
+        service = get_gmail_service()
+        if not service:
+            print("Error: Gmail service unavailable")
+            return jsonify({'error': 'Email service unavailable'}), 500
+
+        message = MIMEText(email_body, 'html')
+        message['to'] = user_email
+        message['subject'] = email_subject
+
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        message_object = {'raw': raw_message}
+
+        sent_message = service.users().messages().send(
+            userId='me', 
+            body=message_object
+        ).execute()
+
+        print(f"Email sent successfully to {user_email} with {'existing' if not create_new_invoice else 'new'} invoice link")
+
+        return jsonify({
+            'success': True,
+            'message': 'Invoice sent successfully',
+            'email_id': sent_message.get('id', None),
+            'payment_link': payment_link,
+            'is_new_invoice': create_new_invoice
+        })
+
+    except Exception as e:
+        print(f"Error in send_invoice: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/stripe-webhook', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events for payment status updates"""
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+    
+    try:
+        # Verify webhook signature
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+        
+        # Handle checkout.session.completed event
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            
+            # Get request_id from metadata
+            request_id = session.get('metadata', {}).get('request_id')
+            if not request_id:
+                request_id = session.get('client_reference_id')
+            
+            if request_id:
+                # Update payment status in database
+                with pool.connect() as conn:
+                    update_query = sqlalchemy.text(
+                        "UPDATE ice.rental_request SET paid = TRUE WHERE request_id = :request_id"
+                    )
+                    conn.execute(update_query, {"request_id": request_id})
+                    conn.commit()
+                    print(f"Payment marked as paid for request_id: {request_id}")
+            else:
+                print("Warning: No request_id found in the webhook data")
+                
+        return jsonify({'status': 'success'})
+    
+    except (stripe.error.SignatureVerificationError, ValueError) as e:
+        print(f"Webhook error: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print(f"Webhook error: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
