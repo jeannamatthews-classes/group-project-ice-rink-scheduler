@@ -10,6 +10,18 @@ function setupRequestForm() {
     allowInput: true,
   });
 
+  const DatePicker = flatpickr("#recurring-end", {
+    dateFormat: "m/d/Y",
+    allowInput: true,
+    onOpen: function (selectedDates, dateStr, instance) {
+
+      const min = new Date();
+
+      instance.set('minDate', min);
+
+    }
+  });
+
   const recurringEndPicker = flatpickr("#recurring-end", {
     dateFormat: "m/d/Y",
     allowInput: true,
@@ -17,12 +29,12 @@ function setupRequestForm() {
       const startDateStr = document.getElementById("date").value;
       if (!startDateStr) return;
 
-      const [startMonth, , startYear] = startDateStr.split('/');
-      const min = new Date(startYear, startMonth - 1, 1);
-      const max = new Date(startYear, startMonth, 0); // Last day of month
+      // Min date is start date + 1 day
+      const min = new Date(startDateStr);
+      min.setDate(min.getDate() + 1);
 
       instance.set('minDate', min);
-      instance.set('maxDate', max);
+
     }
   });
 
@@ -74,19 +86,19 @@ function setupRequestForm() {
     }
 
     const formData = {
-      firebase_uid: user.uid,
-      event_name: document.getElementById("name-rental").value,
+      firebase_uid: user.uid, 
+      rental_name: document.getElementById("name-rental").value,
       additional_desc: document.getElementById("add-desc").value,
       start_date: document.getElementById("date").value,
-      end_date: document.getElementById("recurring").checked
-        ? document.getElementById("recurring-end").value
-        : document.getElementById("date").value,
+      end_date: document.getElementById("recurring").checked ? 
+                document.getElementById("recurring-end").value : 
+                document.getElementById("date").value,
       start_time: document.getElementById("start-time").value,
       end_time: document.getElementById("end-time").value,
       is_recurring: document.getElementById("recurring").checked,
       recurrence_rule: document.getElementById("recurring").checked
         ? document.getElementById("recurrence-type").value
-        : null
+        : null,
     };
 
     fetch('/api/submit_event', {
@@ -169,11 +181,20 @@ function validateForm() {
     isValid = false;
   }
 
-  if (date && startTime && endTime) {
+  // Validate start time when date is today
+  if (date && startTime) {
+    const now = new Date();
+    const selectedDate = new Date(date);
     const startDateTime = new Date(`${date} ${startTime}`);
-    const endDateTime = new Date(`${date} ${endTime}`);
 
-    if (startDateTime >= endDateTime) {
+    // Check if the start date is today and start time is in the past
+    if (selectedDate.toDateString() === now.toDateString() && startDateTime < now) {
+      showError('start-time-error', 'Start time cannot be in the past');
+      isValid = false;
+    }
+
+    // Compare start time and end time
+    if (startDateTime >= new Date(`${date} ${endTime}`)) {
       showError('end-time-error', 'End time must be after start time');
       isValid = false;
     }
@@ -191,6 +212,13 @@ function validateForm() {
 
   return isValid;
 }
+
+function showError(elementId, message) {
+  const errorElement = document.getElementById(elementId);
+  errorElement.textContent = message;
+  errorElement.style.display = 'block';
+}
+
 
 function showError(elementId, message) {
   const errorElement = document.getElementById(elementId);

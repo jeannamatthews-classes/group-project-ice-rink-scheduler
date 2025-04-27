@@ -181,12 +181,18 @@ function renderAdminDeclinedRequests(requests, containerId) {
  */
 function renderAdminRequests(requests, containerId) {
   const container = document.getElementById(containerId);
-  
+  const isAcceptedView = containerId === 'acceptedRequests';
+
   if (!requests || requests.length === 0) {
     container.innerHTML = '<div class="no-requests">No requests found</div>';
     return;
   }
-  
+
+  const now = new Date();
+  const estNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const oneMonthAgo = new Date(estNow);
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
   let html = '';
   requests.forEach(request => {
     const startDate = request.start_date;
@@ -198,9 +204,22 @@ function renderAdminRequests(requests, containerId) {
     const isRecurring = request.is_recurring;
     const hasStarted = isEventStartedOrPassed(startDate, startTime);
     const isPastEndDate = isEventPastEndDate(endDate);
-    
-    html += 
-      `<div class="request-item ${isAdminEvent ? 'admin-event' : ''} ${hasStarted ? 'event-started' : ''}" 
+    const amount = request.amount ? `$${parseFloat(request.amount).toFixed(2)}` : 'N/A';
+    const isPaid = request.paid;
+
+    let canEditAmount = false;
+    if (!isPending && !isAdminEvent && !isPaid) {  // <-- don't allow editing if paid
+      if (isRecurring) {
+        const eventEndDate = parseDate(endDate);
+        canEditAmount = eventEndDate > oneMonthAgo;
+      } else {
+        const eventStartDate = parseDate(startDate);
+        canEditAmount = eventStartDate > oneMonthAgo;
+      }
+    }
+
+    html += `
+      <div class="request-item ${isAdminEvent ? 'admin-event' : ''} ${hasStarted ? 'event-started' : ''}" 
            data-request-id="${request.request_id}"
            data-is-admin-event="${isAdminEvent}"
            data-is-recurring="${isRecurring}"
@@ -208,41 +227,79 @@ function renderAdminRequests(requests, containerId) {
            data-end-date="${endDate}"
            data-start-time="${startTime}"
            data-has-started="${hasStarted}"
-           data-past-end-date="${isPastEndDate}">
+           data-past-end-date="${isPastEndDate}"
+           data-amount="${request.amount || 0}">
         <div class="request-header">
-          <span class="request-name">
-            ${request.rental_name || request.event_name} 
-            ${request.user_name ? `<span class="user-name">(${request.user_name})</span>` : ''}
-            ${isRecurring ? '<span class="recurring-badge">Recurring</span>' : ''}
-            ${isAdminEvent ? '<span class="admin-badge">Admin Event</span>' : ''}
-          </span>
-
+          <div class="header-left">
+            <span class="request-name">
+              ${request.rental_name || request.event_name} 
+              ${request.user_name ? `<span class="user-name">(${request.user_name})</span>` : ''}
+              ${isRecurring ? '<span class="recurring-badge">Recurring</span>' : ''}
+              ${isAdminEvent ? '<span class="admin-badge">Admin Event</span>' : ''}
+              ${isAcceptedView && isPaid ? '<span class="paid-badge">Paid</span>' : ''}  <!-- NEW: Paid badge -->
+            </span>
+          </div>
+          <div class="header-right">
+            ${isAcceptedView && !isAdminEvent && parseFloat(request.amount) > 0 ? `
+              <div class="request-invoice">
+                <button 
+                  class="btn btn-invoice send-invoice ${isPaid ? 'invoice-sent' : ''}" 
+                  data-request-id="${request.request_id}" 
+                  data-user-email="${request.user_email}" 
+                  data-amount="${request.amount || 0}"
+                  ${isPaid ? 'disabled' : ''}
+                >
+                  <i class="fas fa-paper-plane"></i> Send Invoice
+                </button>
+              </div>` 
+            : ''}
+          </div>
         </div>
+
         <div class="request-dates">
           ${startDate} ${startDate !== endDate ? `to ${endDate}` : ''}
         </div>
         <div class="request-time">
           ${startTime} - ${request.end_time}
         </div>
-        ${request.additional_desc || request.description ? 
-          `<div class="request-desc">
+
+        ${isAcceptedView && !isAdminEvent ? `
+          <div class="request-amount">
+            <strong>Amount:</strong> 
+            <span class="amount-value">${amount}</span>
+            ${canEditAmount ? `
+              <button 
+                class="btn btn-sm btn-edit-amount edit-amount" 
+                data-request-id="${request.request_id}"
+                ${isPaid ? 'disabled' : ''}
+              >
+                <i class="fas fa-edit"></i>
+              </button>
+            ` : ''}
+          </div>` 
+        : ''}
+
+        ${request.additional_desc || request.description ? `
+          <div class="request-desc">
             ${request.additional_desc || request.description}
-          </div>`
-         : ''}
+          </div>` 
+        : ''}
+
         <div class="request-footer">
           <div class="request-meta">
             <span class="request-date">
               ${isAdminEvent ? 'Created' : 'Submitted'}: ${formattedRequestDate}
+              ${!isAdminEvent ? `
+                <span class="request-user">User: ${request.user_email}</span>
+                <span class="request-phone">Phone: ${request.user_phone}</span>` 
+              : ''}
             </span>
-            ${request.user_email ? 
-              `<span class="request-user">User: ${request.user_email}</span>`
-             : ''}
           </div>
-          
-          ${isPending ? 
-            `<div class="request-actions">
-              ${!hasStarted ? 
-                `<button class="btn btn-approve approve-request" data-request-id="${request.request_id}">
+
+          ${isPending ? `
+            <div class="request-actions">
+              ${!hasStarted ? `
+                <button class="btn btn-approve approve-request" data-request-id="${request.request_id}">
                   <i class="fas fa-check"></i> Approve
                 </button>` 
               : ''}
@@ -250,41 +307,258 @@ function renderAdminRequests(requests, containerId) {
                 <i class="fas fa-times"></i> Decline
               </button>
             </div>`
-           : ''}
-          
-          ${!isPending ? 
-            `<div class="request-actions">
-              ${isRecurring && !isPastEndDate ? 
-                `<button class="btn btn-edit edit-recurring" data-request-id="${request.request_id}" data-is-admin="${isAdminEvent}">
+          : `
+            <div class="request-actions">
+              ${isRecurring && !isPastEndDate ? `
+                <button class="btn btn-edit edit-recurring" data-request-id="${request.request_id}" data-is-admin="${isAdminEvent}">
                   <i class="fas fa-edit"></i> Edit
                 </button>` 
               : ''}
-              ${isAdminEvent && !hasStarted ? 
-                `<button class="btn btn-delete delete-event" data-event-id="${request.request_id}">
+              ${isAdminEvent && !hasStarted ? `
+                <button class="btn btn-delete delete-event" data-event-id="${request.request_id}">
                   <i class="fas fa-trash"></i> Delete
-                </button>`
-              : 
-                // Always show decline button for approved user requests
-                !isAdminEvent ? 
-                `<button class="btn btn-decline decline-request" data-request-id="${request.request_id}">
+                </button>` 
+              : !isAdminEvent ? `
+                <button class="btn btn-decline decline-request" data-request-id="${request.request_id}">
                   <i class="fas fa-times"></i> Decline
                 </button>` 
               : ''}
-            </div>`
-           : ''}
+            </div>`}
         </div>
-      </div>`
-    ;
+      </div>
+    `;
   });
-  
+
   container.innerHTML = html;
-  
-  // Set up admin event buttons if needed
+
   if (containerId === 'acceptedRequests') {
     setupAdminEventButtons();
     setupRecurringEditButtons();
+    setupAmountEditButtons();
+    setupInvoiceButtons();
+
+    const style = document.createElement('style');
+    style.textContent = `
+      .amount-value {
+        color: #0275d8;
+        font-weight: 600;
+        font-size: 1.05em;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background-color: rgba(2, 117, 216, 0.05);
+      }
+
+      .paid-badge {
+        background-color: #28a745;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        margin-left: 6px;
+      }
+
+      .request-amount {
+        margin: 8px 0;
+        padding: 2px 0;
+        display: flex;
+        align-items: center;
+      }
+
+      .request-amount .btn-edit-amount {
+        margin-left: 10px;
+        padding: 2px 8px;
+        font-size: 0.8em;
+      }
+
+      .btn-edit-amount {
+        background-color: #17a2b8;
+        color: white;
+        border-color: #17a2b8;
+      }
+
+      .btn-edit-amount:hover {
+        background-color: #138496;
+        border-color: #117a8b;
+      }
+
+      .btn-edit {
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #ced4da;
+      }
+
+      .btn-edit:hover {
+        background-color: #e2e6ea;
+        border-color: #dae0e5;
+      }
+
+      .btn-invoice {
+        background-color: #005082;
+        color: white;
+        border-color: #005082;
+        padding: 4px 8px;
+        font-size: 14px;
+      }
+
+      .btn-invoice:hover {
+        background-color: #003c5f;
+        border-color: #002c46;
+      }
+
+      .invoice-sent {
+        background-color: #6c757d;
+        border-color: #6c757d;
+      }
+    `;
+    document.head.appendChild(style);
   }
-}  
+}
+
+
+/**
+ * Helper function to parse date string (handles both MM/DD/YYYY and YYYY-MM-DD formats)
+ */
+function parseDate(dateString) {
+  if (!dateString) return new Date(0); // Return epoch if no date
+  
+  let year, month, day;
+  
+  if (dateString.includes('/')) {
+    // MM/DD/YYYY format
+    [month, day, year] = dateString.split('/').map(Number);
+    return new Date(year, month - 1, day);
+  } else {
+    // YYYY-MM-DD format
+    [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+}
+
+/**
+ * Set up edit amount buttons
+ */
+function setupAmountEditButtons() {
+  document.querySelectorAll('.edit-amount').forEach(button => {
+    button.addEventListener('click', (e) => handleEditAmount(e, button));
+  });
+}
+
+/**
+ * Handle edit amount action
+ */
+function handleEditAmount(e, button) {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const requestId = button.dataset.requestId;
+  const requestItem = button.closest('.request-item');
+  const currentAmount = parseFloat(requestItem.dataset.amount) || 0;
+  const isAdminEvent = requestItem.dataset.isAdminEvent === 'true';
+  
+  // Create modal backdrop
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.style.position = 'fixed';
+  backdrop.style.top = '0';
+  backdrop.style.left = '0';
+  backdrop.style.width = '100%';
+  backdrop.style.height = '100%';
+  backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
+  backdrop.style.zIndex = '1000';
+  backdrop.style.display = 'flex';
+  backdrop.style.justifyContent = 'center';
+  backdrop.style.alignItems = 'center';
+  
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.className = 'edit-amount-modal';
+  modal.style.backgroundColor = 'white';
+  modal.style.padding = '25px';
+  modal.style.borderRadius = '8px';
+  modal.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
+  modal.style.width = '400px';
+  modal.style.maxWidth = '90%';
+  
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; color: #0066ff;">Edit Amount</h3>
+    <p>Current amount: $${currentAmount.toFixed(2)}</p>
+    <div style="margin-bottom: 20px;">
+      <label for="newAmount" style="display: block; margin-bottom: 8px; font-weight: 600;">New Amount ($):</label>
+      <input type="number" id="newAmount" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;" 
+             placeholder="Enter new amount" min="0" step="0.01" value="${currentAmount.toFixed(2)}">
+      <div id="amountEditError" style="color: #d32f2f; font-size: 0.8em; margin-top: 5px; display: none;">
+        Please enter a valid amount
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button id="cancelAmountEdit" style="padding: 10px 15px; border: none; border-radius: 5px; background-color: #f1f1f1; cursor: pointer;">
+        Cancel
+      </button>
+      <button id="saveAmountEdit" style="padding: 10px 15px; border: none; border-radius: 5px; background-color: #0066ff; color: white; cursor: pointer;">
+        Save Changes
+      </button>
+    </div>
+  `;
+  
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  
+  // Set up event listeners for modal
+  document.getElementById('cancelAmountEdit').addEventListener('click', () => {
+    document.body.removeChild(backdrop);
+  });
+  
+  document.getElementById('saveAmountEdit').addEventListener('click', async () => {
+    const newAmountInput = document.getElementById('newAmount');
+    const newAmount = parseFloat(newAmountInput.value);
+    
+    // Validate amount
+    if (isNaN(newAmount) || newAmount < 0) {
+      document.getElementById('amountEditError').style.display = 'block';
+      return;
+    }
+    
+    try {
+      const saveButton = document.getElementById('saveAmountEdit');
+      saveButton.disabled = true;
+      saveButton.textContent = 'Saving...';
+
+      // Choose endpoint based on whether it's an admin event or user request
+      const endpoint = isAdminEvent ? 
+        `/api/admin/events/update_amount/${requestId}` : 
+        `/api/admin/requests/update_amount/${requestId}`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          amount: newAmount 
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update amount');
+      }
+      
+      // Remove modal and refresh data
+      document.body.removeChild(backdrop);
+      showToast('Amount updated successfully', 'success');
+      loadAllRequests();
+    } catch (error) {
+      console.error('Error updating amount:', error);
+      showToast(`Error: ${error.message}`, 'error');
+      document.getElementById('saveAmountEdit').disabled = false;
+      document.getElementById('saveAmountEdit').textContent = 'Save Changes';
+    }
+  });
+  
+  // Focus on amount input
+  document.getElementById('newAmount').focus();
+}
 
 /**
  * Set up action buttons for admin events
@@ -595,45 +869,33 @@ function setupRequestActions() {
     button.addEventListener('click', async (e) => {
       e.preventDefault();
       const requestId = button.dataset.requestId;
+      const hasStarted = button.dataset.hasStarted === 'true';
       
-      if (confirm('Are you sure you want to approve this request?')) {
-        try {
-          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
-          button.disabled = true;
-          
-          const response = await fetch(`/api/admin/approve_request/${requestId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          const result = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(result.error || 'Failed to approve request');
-          } else {refreshCalendar();}
-          
-          // Refresh the requests view
-          loadAllRequests();
-          showToast('Request approved successfully', 'success');
-        } catch (error) {
-          console.error('Error approving request:', error);
-          showToast(`Error: ${error.message}`, 'error');
-          button.innerHTML = '<i class="fas fa-check"></i> Approve';
-          button.disabled = false;
-        }
+      // If event has started, show message and don't proceed
+      if (hasStarted) {
+        showToast('Cannot approve events that have already started or passed', 'error');
+        return;
       }
-    });
+      
+      // Create and show the amount popup
+      showAmountPrompt(requestId);
+    });  
   });
 
-  // Decline buttons
+  // Decline buttons - works for both pending and accepted requests
   document.querySelectorAll('.decline-request').forEach(button => {
     button.addEventListener('click', async (e) => {
       e.preventDefault();
       const requestId = button.dataset.requestId;
       const requestItem = button.closest('.request-item');
       const isAccepted = requestItem.querySelector('.status-approved') !== null;
+      const hasStarted = button.dataset.hasStarted === 'true';
+      
+      // If event has started, show a message and don't proceed
+      if (hasStarted) {
+        showToast('Cannot decline events that have already started or passed', 'error');
+        return;
+      }
       
       // Different confirmation message based on status
       const confirmMessage = isAccepted ? 
@@ -664,7 +926,7 @@ function setupRequestActions() {
           
           if (!response.ok) {
             throw new Error(result.error || 'Failed to decline request');
-          } else {refreshCalendar();}
+          }
           
           // Refresh the requests view
           loadAllRequests();
@@ -678,6 +940,191 @@ function setupRequestActions() {
       }
     });
   });
+}
+
+/**
+ * Show amount prompt for approval
+ */
+function showAmountPrompt(requestId) {
+  // Create modal backdrop
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.style.position = 'fixed';
+  backdrop.style.top = '0';
+  backdrop.style.left = '0';
+  backdrop.style.width = '100%';
+  backdrop.style.height = '100%';
+  backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
+  backdrop.style.zIndex = '1000';
+  backdrop.style.display = 'flex';
+  backdrop.style.justifyContent = 'center';
+  backdrop.style.alignItems = 'center';
+  
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.className = 'amount-modal';
+  modal.style.backgroundColor = 'white';
+  modal.style.padding = '25px';
+  modal.style.borderRadius = '8px';
+  modal.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
+  modal.style.width = '400px';
+  modal.style.maxWidth = '90%';
+  
+  modal.innerHTML = `
+    <h3 style="margin-top: 0; color: #0066ff;">Add Amount for Request</h3>
+    <p>Please specify the amount to charge for this rental request:</p>
+    <div style="margin-bottom: 20px;">
+      <label for="requestAmount" style="display: block; margin-bottom: 8px; font-weight: 600;">Amount ($):</label>
+      <input type="number" id="requestAmount" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;" placeholder="Enter amount" min="0" step="0.01">
+      <div id="amountError" style="color: #d32f2f; font-size: 0.8em; margin-top: 5px; display: none;">Please enter a valid amount</div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button id="cancelApproval" style="padding: 10px 15px; border: none; border-radius: 5px; background-color: #f1f1f1; cursor: pointer;">Cancel</button>
+      <button id="confirmApproval" style="padding: 10px 15px; border: none; border-radius: 5px; background-color: #0066ff; color: white; cursor: pointer;">Approve</button>
+    </div>
+  `;
+  
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  
+  // Add event listeners
+  document.getElementById('cancelApproval').addEventListener('click', () => {
+    document.body.removeChild(backdrop);
+  });
+  
+  document.getElementById('confirmApproval').addEventListener('click', async () => {
+    const amountInput = document.getElementById('requestAmount');
+    const amount = parseFloat(amountInput.value);
+    
+    // Validate amount
+    if (isNaN(amount) || amount < 0) {
+      document.getElementById('amountError').style.display = 'block';
+      return;
+    }
+    
+    // Hide error if previously shown
+    document.getElementById('amountError').style.display = 'none';
+    
+    try {
+      const confirmButton = document.getElementById('confirmApproval');
+      confirmButton.disabled = true;
+      confirmButton.textContent = 'Processing...';
+      confirmButton.style.backgroundColor = '#cccccc';
+      
+      // Call API to approve the request with amount
+      const response = await fetch(`/api/admin/approve_request/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount: amount })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to approve request');
+      }
+      
+      // Close modal
+      document.body.removeChild(backdrop);
+      
+      // Refresh requests and show success message
+      loadAllRequests();
+      showToast('Request approved successfully', 'success');
+    } catch (error) {
+      console.error('Error approving request:', error);
+      showToast(`Error: ${error.message}`, 'error');
+      
+      // Reset button
+      const confirmButton = document.getElementById('confirmApproval');
+      confirmButton.disabled = false;
+      confirmButton.textContent = 'Approve';
+      confirmButton.style.backgroundColor = '#0066ff';
+    }
+  });
+  
+  // Focus on amount input
+  document.getElementById('requestAmount').focus();
+}
+
+/**
+ * Set up invoice buttons for accepted requests
+ */
+function setupInvoiceButtons() {
+  document.querySelectorAll('.send-invoice').forEach(button => {
+    button.addEventListener('click', (e) => handleSendInvoice(e, button));
+  });
+}
+
+/**
+ * Handle sending invoice
+ */
+async function handleSendInvoice(e, button) {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const requestId = button.dataset.requestId;
+  const userEmail = button.dataset.userEmail;
+  const amount = parseFloat(button.dataset.amount);
+  const requestItem = button.closest('.request-item');
+  const rentalName = requestItem.querySelector('.request-name').textContent.trim();
+  const startDate = requestItem.dataset.startDate;
+  const endDate = requestItem.dataset.endDate;
+  
+  if (!userEmail) {
+    showToast('No email found for this user', 'error');
+    return;
+  }
+  
+  if (isNaN(amount) || amount <= 0) {
+    showToast('Invalid amount for invoice', 'error');
+    return;
+  }
+  
+  try {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    
+    const response = await fetch('/api/admin/send_invoice', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        request_id: requestId,
+        user_email: userEmail,
+        amount: amount,
+        rental_name: rentalName,
+        start_date: startDate,
+        end_date: endDate
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to send invoice');
+    }
+    
+    // Update UI to show invoice sent
+    button.innerHTML = '<i class="fas fa-check"></i> Invoice Sent';
+    button.classList.add('invoice-sent');
+    
+    // Re-enable after a short delay
+    setTimeout(() => {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-paper-plane"></i> Send Invoice';
+      button.classList.remove('invoice-sent');
+    }, 5000);
+    
+    showToast('Invoice sent successfully to ' + userEmail, 'success');
+  } catch (error) {
+    console.error('Error sending invoice:', error);
+    showToast(`Error: ${error.message}`, 'error');
+    button.disabled = false;
+    button.innerHTML = '<i class="fas fa-paper-plane"></i> Send Invoice';
+  }
 }
 
 /**

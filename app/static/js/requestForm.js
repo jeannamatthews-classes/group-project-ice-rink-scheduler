@@ -6,6 +6,18 @@ function setupRequestForm() {
     allowInput: true,
   });
 
+  const DatePicker = flatpickr("#recurring-end", {
+    dateFormat: "m/d/Y",
+    allowInput: true,
+    onOpen: function (selectedDates, dateStr, instance) {
+
+      const min = new Date();
+
+      instance.set('minDate', min);
+
+    }
+  });
+
   const recurringEndPicker = flatpickr("#recurring-end", {
     dateFormat: "m/d/Y",
     allowInput: true,
@@ -13,12 +25,12 @@ function setupRequestForm() {
       const startDateStr = document.getElementById("date").value;
       if (!startDateStr) return;
 
-      const [startMonth, , startYear] = startDateStr.split('/');
-      const min = new Date(startYear, startMonth - 1, 1);
-      const max = new Date(startYear, startMonth, 0); // Last day of month
+      // Min date is start date + 1 day
+      const min = new Date(startDateStr);
+      min.setDate(min.getDate() + 1);
 
       instance.set('minDate', min);
-      instance.set('maxDate', max);
+
     }
   });
 
@@ -130,15 +142,12 @@ function validateForm() {
   const endTime = document.getElementById("end-time").value;
   const isRecurring = document.getElementById("recurring").checked;
   const recurringEnd = document.getElementById("recurring-end").value;
-  const recurrenceType = document.getElementById("recurrence-type").value;
 
-  // Clear all error messages
   document.querySelectorAll('.error-message').forEach(el => {
     el.textContent = '';
     el.style.display = 'none';
   });
 
-  // Validate required fields
   if (!document.getElementById("name-rental").value) {
     isValid = false;
   }
@@ -155,28 +164,29 @@ function validateForm() {
     isValid = false;
   }
 
-  if (isRecurring) {
-    if (!recurringEnd) {
-      isValid = false;
-    }
-
-    if (!recurrenceType) {
-      isValid = false;
-    }
+  if (isRecurring && !recurringEnd) {
+    isValid = false;
   }
 
-  // Time logic check
-  if (date && startTime && endTime) {
+  // Validate start time when date is today
+  if (date && startTime) {
+    const now = new Date();
+    const selectedDate = new Date(date);
     const startDateTime = new Date(`${date} ${startTime}`);
-    const endDateTime = new Date(`${date} ${endTime}`);
 
-    if (startDateTime >= endDateTime) {
+    // Check if the start date is today and start time is in the past
+    if (selectedDate.toDateString() === now.toDateString() && startDateTime < now) {
+      showError('start-time-error', 'Start time cannot be in the past');
+      isValid = false;
+    }
+
+    // Compare start time and end time
+    if (startDateTime >= new Date(`${date} ${endTime}`)) {
       showError('end-time-error', 'End time must be after start time');
       isValid = false;
     }
   }
 
-  // Date logic check for recurring
   if (isRecurring && date && recurringEnd) {
     const startDate = new Date(date);
     const endDate = new Date(recurringEnd);
