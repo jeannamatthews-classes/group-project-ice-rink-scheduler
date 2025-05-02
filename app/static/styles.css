@@ -21,7 +21,7 @@
     .request-form-container {
       flex: 1;
       padding: 30px;
-      max-height: 620px;
+      max-height: 600px;
       overflow-y: scroll;
     }
 
@@ -132,7 +132,7 @@
       box-shadow: 0px 4px 8px rgba(0, 0, 255, 0.2);
       padding: 20px;
       max-width: 850px;
-      max-height: 650px;
+      max-height: 600px;
       display: flex;
       flex-direction: column;
       overflow: auto;
@@ -622,4 +622,49 @@
 .legend-approved {
     background-color: #50c878;
 }
+.filter-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 4px 0;
+  font-size: 0.9rem;
+}
 
+.filter-controls label {
+  font-weight: 600;
+  color: #333;
+}
+
+.filter-controls select {
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #333;
+}
+.admin-badge {
+  background-color: #296dff;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  margin-left: 8px;
+}
+.paid-badge {
+  background-color: #28a745;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  margin-left: 8px;
+}
+.unpaid-badge {
+  background-color: #ffc107;
+  color: #212529;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  margin-left: 8px;
+}
