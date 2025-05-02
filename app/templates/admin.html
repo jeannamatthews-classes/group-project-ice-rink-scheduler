@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="stylesheet" type="text/css" href="static/responsive.css">
   <meta charset="UTF-8" />
   <meta name="description" content="Admin Loggedin">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +11,73 @@
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" type="text/css" href="static/styles.css">
   <link rel="stylesheet" type="text/css" href="static/addStyles.css">
+  <link rel="stylesheet" type="text/css" href="static/responsive.css">
+  <style>
+    /* Additional styles for the header area and search button */
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .search-button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 500;
+      transition: background-color 0.3s;
+    }
+    
+    .search-button:hover {
+      background-color: #45a049;
+    }
+    
+    /* Modal styles for user search */
+    .search-modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+    
+    .search-modal-content {
+      background-color: white;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 500px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    .search-form-group {
+      margin-bottom: 15px;
+    }
+    
+    .search-results {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .user-card {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      background-color: #f9f9f9;
+    }
   </style>
 </head>
 
@@ -19,7 +85,12 @@
   <div class="main-container">
     <!-- Request Form -->
     <div class="request-form-container">
-      <h1>Admin</h1>
+      <div class="admin-header">
+        <h1>Admin</h1>
+        <button id="userSearchBtn" class="search-button">
+          <i class="fas fa-search"></i> User Search
+        </button>
+      </div>
 
       <div class="view-buttons">
         <button class="active" onclick="switchView('request')">Create</button>
@@ -52,7 +123,20 @@
             <input type="text" name="end-time" id="end-time" placeholder="Select end time" required>
           </div>
           <div id="end-time-error" class="error-message"></div>
-
+          <div class="form-group">
+            <label>
+              I'm submitting on behalf of a user
+              <input type="checkbox" id="admin-event" name="admin-event">
+            </label>
+          </div>
+          
+          <div id="user-email-container" style="display: none;">
+            <div class="form-group">
+              <label for="user-email">User Email</label>
+              <input type="email" id="user-email" name="user-email">
+              <div id="user-email-error" class="error-message" style="display: none;"></div>
+            </div>
+          </div>
           <label for="recurring">Is it a recurring event?</label>
           <input type="checkbox" name="recurring" id="recurring">
           <div id="recurrence-type-container" style="display: none; margin-top: 8px;">
@@ -164,7 +248,5 @@
   <script src="/static/js/requestForm_admin.js"></script>
   <script src="/static/js/ui.js"></script>
   <script src="/static/js/calendar.js"></script>
-  <script src="/static/js/responsive.js"></script>
-  
 </body>
 </html>

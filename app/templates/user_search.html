@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Search | Ice Rink Scheduling</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/styles.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="static/responsive.css">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Main Content -->
+            <main class="col-12 col-md-10 offset-md-1 col-lg-8 offset-lg-2 px-3">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">User Search</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button id="backToAdmin" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Back to Admin
+                        </button>
+                    </div>
+                </div>
+
+                <!-- User Search Section -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Search Users</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8 position-relative">
+                                <input type="text" class="form-control" id="userSearch" placeholder="Search users..." autocomplete="off" data-bs-toggle="dropdown">
+                                <div id="searchResults" class="dropdown-menu w-100" style="display: none;"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <button id="clearSearch" class="btn btn-outline-secondary">
+                                    <i class="fas fa-times me-1"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected User Info -->
+                <div id="selectedUserInfo" class="card mb-4" style="display: none;">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">User Details</h5>
+                        <button id="clearSelectedUser" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i> Clear
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p><strong>Name:</strong> <span id="userFullName"></span></p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Email:</strong> <span id="userEmail"></span></p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Phone:</strong> <span id="userPhone"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Filter Requests</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="statusFilter" class="form-label">Status</label>
+                                <select id="statusFilter" class="form-select">
+                                    <option value="all">All Statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="declined">Declined</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="monthFilter" class="form-label">Month</label>
+                                <select id="monthFilter" class="form-select">
+                                    <option value="all">All Months</option>
+                                    <option value="1">January</option>
+                                    <option value="2">February</option>
+                                    <option value="3">March</option>
+                                    <option value="4">April</option>
+                                    <option value="5">May</option>
+                                    <option value="6">June</option>
+                                    <option value="7">July</option>
+                                    <option value="8">August</option>
+                                    <option value="9">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="yearFilter" class="form-label">Year</label>
+                                <select id="yearFilter" class="form-select">
+                                    <option value="all">All Years</option>
+                                    <!-- Dynamically populated -->
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="paymentFilter" class="form-label">Payment Status</label>
+                                <select id="paymentFilter" class="form-select">
+                                    <option value="all">All</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="unpaid">Unpaid</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Summary (Visible only when status is approved) -->
+                <div id="paymentSummary" class="card mb-4" style="display: none;">
+                    <div class="card-header">
+                        <h5 class="mb-0">Payment Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="alert alert-success">
+                                    <h6 class="alert-heading">Amount Paid</h6>
+                                    <p class="mb-0"><span id="amountPaid">$0.00</span></p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-warning">
+                                    <h6 class="alert-heading">Amount Pending</h6>
+                                    <p class="mb-0"><span id="amountPending">$0.00</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <div>
+                            <span class="text-muted">Paid:</span>
+                            <span id="amountPaid" class="fw-bold ms-2">$0.00</span>
+                        </div>
+                        <div>
+                            <span class="text-muted">Pending:</span>
+                            <span id="amountPending" class="fw-bold ms-2">$0.00</span>
+                        </div>
+                        <div>
+                            <span class="text-muted">Total:</span>
+                            <span id="amountTotal" class="fw-bold ms-2">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Requests List -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Requests</h5>
+                        <span id="requestCount" class="badge bg-primary">0 requests</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="loadingIndicator" class="text-center my-4" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading requests...</p>
+                        </div>
+                        <div id="noRequestsMessage" class="text-center my-4">
+                            <p>No requests found. Select a user to view their requests.</p>
+                        </div>
+                        <div id="requestsList" class="request-list"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Request Details Modal -->
+    <div class="modal fade" id="requestDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalRequestTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Date:</strong> <span id="modalRequestDate"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Time:</strong> <span id="modalRequestTime"></span></p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <p><strong>Description:</strong></p>
+                        <p id="modalRequestDesc" class="text-muted"></p>
+                    </div>
+                    <div id="modalRequestStatusSection" class="mb-3">
+                        <p><strong>Status:</strong> <span id="modalRequestStatus" class="badge"></span></p>
+                        <div id="modalDeclineReason" class="alert alert-danger mt-2" style="display: none;">
+                            <strong>Reason for Decline:</strong> <span id="modalDeclineReasonText"></span>
+                        </div>
+                    </div>
+                    <div id="modalPaymentSection" class="mb-3" style="display: none;">
+                        <p><strong>Amount:</strong> $<span id="modalRequestAmount">0.00</span></p>
+                        <p><strong>Payment Status:</strong> <span id="modalPaymentStatus" class="badge"></span></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <div id="modalActionButtons">
+                        <!-- Buttons will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/user_search.js"></script>
+</body>
+</html>
