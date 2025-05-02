@@ -1,3 +1,6 @@
+/* Responsive Styles for Ice Rink Scheduling Website */
+
+/* Base styles that apply to all screen sizes */
 .main-container {
     display: flex;
     width: 100%;
@@ -56,28 +59,62 @@
     .calendar-container {
       min-width: 90vw;
       flex-shrink: 0;
-      max-height: 80vh; /* Limit height on mobile */
+      max-height: none; /* Allow full scrolling */
+      height: auto;
+      overflow-y: visible;
     }
     
     /* Calendar adjustments */
     #calendar {
-      grid-template-columns: repeat(7, minmax(40px, 1fr));
-      gap: 5px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
     
+    /* Calendar day headers in mobile view */
+    .calendar-day-header {
+      display: none; /* Hide the day headers on mobile */
+    }
+    
+    /* Show each day as a full card */
     .day {
-      min-height: 70px;
-      padding: 5px;
+      min-height: auto;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
+    /* No need for expand behavior since days are already expanded */
     .day.expanded {
-      min-height: 200px;
+      grid-column: span 1;
+      z-index: 1;
+      min-height: auto;
     }
     
+    /* Make day headers more prominent */
+    .day-header {
+      padding: 5px 0;
+      margin-bottom: 8px;
+      font-weight: bold;
+      font-size: 1.1em;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+    }
+    
+    /* Add day name to headers */
+    .day-header:after {
+      content: attr(data-day-name);
+      font-weight: normal;
+      margin-left: 5px;
+    }
+    
+    /* Style events better */
     .event {
-      font-size: 0.8em;
-      padding: 3px;
-      margin: 2px 0;
+      font-size: 0.9em;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
     }
     
     /* Adjust form elements */
