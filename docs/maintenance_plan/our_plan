@@ -3,4 +3,5 @@ for by Logan. We have been able to set up the payments and invoices along with l
 and create events himself. We have tested the program a lot, however we know that maybe bugs can arise. We believe the only way
 to combat it is to contact people in this group that are not going to graduate and/or find a programmer to help. Giving 
 resources for the bugs would be hard for someone who is a non-programmer, therefore he would have to find a programmer to help
-him. 
+him. There is a possoible problem with ddos since our server is low-cost therefore someone could try to intentionally crash the
+server by sending high amounts of artificial traffic but this case is doubtful. 
