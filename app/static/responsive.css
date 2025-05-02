@@ -1,0 +1,165 @@
+.main-container {
+    display: flex;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    gap: 30px;
+  }
+  
+  /* Medium screens (tablets) */
+  @media screen and (max-width: 992px) {
+    .main-container {
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .calendar-container,
+    .request-form-container,
+    .right-container {
+      width: 90%;
+      max-width: none;
+      margin: 0 auto;
+    }
+    
+    .calendar-container {
+      order: 2; /* Show calendar after the form on tablets */
+    }
+    
+    #loginGrid input,
+    #login, 
+    #createAccount {
+      width: 90%;
+    }
+  }
+  
+  /* Small screens (mobile phones) */
+  @media screen and (max-width: 576px) {
+    body {
+      padding: 10px;
+      overflow-x: auto; /* Allow horizontal scrolling */
+    }
+    
+    .main-container {
+      flex-direction: row; /* Keep original layout but allow scrolling */
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 20px; /* Add space for scrollbar */
+      gap: 15px;
+    }
+    
+    .request-form-container,
+    .right-container {
+      min-width: 90vw; /* Take up most of the viewport width */
+      flex-shrink: 0; /* Prevent shrinking */
+    }
+    
+    .calendar-container {
+      min-width: 90vw;
+      flex-shrink: 0;
+      max-height: 80vh; /* Limit height on mobile */
+    }
+    
+    /* Calendar adjustments */
+    #calendar {
+      grid-template-columns: repeat(7, minmax(40px, 1fr));
+      gap: 5px;
+    }
+    
+    .day {
+      min-height: 70px;
+      padding: 5px;
+    }
+    
+    .day.expanded {
+      min-height: 200px;
+    }
+    
+    .event {
+      font-size: 0.8em;
+      padding: 3px;
+      margin: 2px 0;
+    }
+    
+    /* Adjust form elements */
+    .view-buttons button {
+      padding: 8px 5px;
+      font-size: 0.85em;
+    }
+    
+    /* Adjust user profile popup */
+    .user-profile-popup {
+      right: 10px;
+      width: 250px;
+    }
+    
+    /* Modal adjustments */
+    .modal-content {
+      width: 90%;
+      margin: 10% auto;
+    }
+  }
+  
+  /* Ensure day cells remain reasonable size */
+  @media screen and (max-width: 400px) {
+    #calendar {
+      grid-template-columns: repeat(7, minmax(30px, 1fr));
+      gap: 2px;
+    }
+    
+    .calendar-day-header {
+      font-size: 0.8em;
+      padding: 5px 2px;
+    }
+    
+    .day {
+      min-height: 60px;
+      font-size: 0.8em;
+    }
+  }
+  
+  /* Add visual indicators for scrollable content */
+  @media screen and (max-width: 576px) {
+    /* Add scroll indicators */
+    .main-container::after {
+      content: "";
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: rgba(0, 102, 255, 0.7);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      transform: rotate(-90deg);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      animation: pulse 2s infinite;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.7; }
+      50% { opacity: 1; }
+      100% { opacity: 0.7; }
+    }
+    
+    /* Hide the indicator after scrolling */
+    .main-container.scrolled::after {
+      display: none;
+    }
+  }
+  
+  /* Fix for iPhone/iPad */
+  @supports (-webkit-touch-callout: none) {
+    /* Add iOS-specific fixes */
+    body {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .main-container {
+      width: 100%;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
