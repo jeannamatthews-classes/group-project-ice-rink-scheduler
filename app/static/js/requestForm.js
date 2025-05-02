@@ -24,15 +24,21 @@ function setupRequestForm() {
     onOpen: function (selectedDates, dateStr, instance) {
       const startDateStr = document.getElementById("date").value;
       if (!startDateStr) return;
-
-      // Min date is start date + 1 day
-      const min = new Date(startDateStr);
-      min.setDate(min.getDate() + 1);
-
-      instance.set('minDate', min);
-
+  
+      const startDate = new Date(startDateStr);
+  
+      // Set minDate: 1 day after the selected start date
+      const minDate = new Date(startDate);
+      minDate.setDate(minDate.getDate() + 1);
+  
+      // Set maxDate: Last day of the start date's month
+      const maxDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+  
+      instance.set('minDate', minDate);
+      instance.set('maxDate', maxDate);
     }
   });
+  
 
   const startTimePicker = flatpickr("#start-time", {
     enableTime: true,

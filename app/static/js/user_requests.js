@@ -23,7 +23,7 @@ function loadUserRequests(firebase_uid) {
       const requests = Array.isArray(data.requests) ? data.requests : [];
 
       const pending = requests.filter(r => r.request_status === 'pending');
-      const accepted = requests.filter(r => r.request_status === 'approved');
+      const accepted = requests.filter(r => r.request_status === 'approved'  || r.request_status === 'admin');
       const declined = requests.filter(r => r.request_status === 'declined');
 
       renderRequests(pending, 'pendingRequests');
@@ -57,22 +57,32 @@ function renderDeclinedRequests(requests, containerId) {
     return;
   }
 
+  container.innerHTML = `
+    <div class="filter-controls">
+      <label for="${containerId}-month">Filter:</label>
+      <select class="month-filter" id="${containerId}-month"></select>
+      <select class="year-filter" id="${containerId}-year"></select>
+    </div>
+    <div class="request-list" id="${containerId}-list"></div>
+  `;
+
   let html = '';
   requests.forEach(request => {
-    const startDate = new Date(request.start_date).toLocaleDateString();
-    const endDate = new Date(request.end_date).toLocaleDateString();
+    const startDateObj = new Date(request.start_date);
+    const endDateObj = new Date(request.end_date);
+    const startDate = startDateObj.toLocaleDateString();
+    const endDate = endDateObj.toLocaleDateString();
     const formattedRequestDate = formatLocalTime(request.request_date);
 
     html += `
-      <div class="request-item" data-request-id="${request.request_id}">
+      <div class="request-item" data-request-id="${request.request_id}" data-start-date="${startDateObj.toISOString()}">
         <div class="request-header">
           <span class="request-name">
             ${request.rental_name}
             ${request.is_recurring ? '<span class="recurring-badge">Recurring</span>' : ''}
+            ${request.request_status === 'admin' ? '<span class="admin-badge">Admin Event</span>' : ''}
           </span>
-          <span class="request-status status-declined">
-            Declined
-          </span>
+          <span class="request-status status-declined">Declined</span>
         </div>
         <div class="request-dates">
           ${startDate} ${startDate !== endDate ? `to ${endDate}` : ''}
@@ -83,8 +93,7 @@ function renderDeclinedRequests(requests, containerId) {
         ${request.additional_desc ? `
           <div class="request-desc">
             ${request.additional_desc}
-          </div>
-        ` : ''}
+          </div>` : ''}
         <div class="declined-reason">
           <strong>Reason:</strong> ${request.declined_reason || 'No reason provided'}
         </div>
@@ -95,7 +104,11 @@ function renderDeclinedRequests(requests, containerId) {
     `;
   });
 
-  container.innerHTML = html;
+  document.getElementById(`${containerId}-list`).innerHTML = html;
+
+  populateMonthYearFilters(containerId, requests);
+  document.getElementById(`${containerId}-month`).addEventListener('change', () => filterRequests(containerId));
+  document.getElementById(`${containerId}-year`).addEventListener('change', () => filterRequests(containerId));
 }
 
 function renderRequests(requests, containerId) {
@@ -107,14 +120,25 @@ function renderRequests(requests, containerId) {
     return;
   }
 
+  container.innerHTML = `
+    <div class="filter-controls">
+      <label for="${containerId}-month">Filter:</label>
+      <select class="month-filter" id="${containerId}-month"></select>
+      <select class="year-filter" id="${containerId}-year"></select>
+    </div>
+    <div class="request-list" id="${containerId}-list"></div>
+  `;
+
   let html = '';
   requests.forEach(request => {
-    const startDate = new Date(request.start_date).toLocaleDateString();
-    const endDate = new Date(request.end_date).toLocaleDateString();
+    const startDateObj = new Date(request.start_date);
+    const endDateObj = new Date(request.end_date);
+    const startDate = startDateObj.toLocaleDateString();
+    const endDate = endDateObj.toLocaleDateString();
     const formattedRequestDate = formatLocalTime(request.request_date);
 
     html += `
-      <div class="request-item" data-request-id="${request.request_id}">
+      <div class="request-item" data-request-id="${request.request_id}" data-start-date="${startDateObj.toISOString()}">
         <div class="request-header">
           <span class="request-name">
             ${request.rental_name}
@@ -133,25 +157,77 @@ function renderRequests(requests, containerId) {
         ${request.additional_desc ? `
           <div class="request-desc">
             ${request.additional_desc}
-          </div>
-        ` : ''}
+          </div>` : ''}
         <div class="request-footer">
           <div class="request-date">Submitted: ${formattedRequestDate}</div>
           ${request.request_status === 'pending' ? `
             <button class="delete-request" data-request-id="${request.request_id}">
               <i class="fas fa-trash"></i> Delete
-            </button>
-          ` : ''}
+            </button>` : ''}
         </div>
       </div>
     `;
   });
 
-  container.innerHTML = html;
+  document.getElementById(`${containerId}-list`).innerHTML = html;
 
-  // Add click handlers for delete buttons
   setupDeleteButtons();
+  populateMonthYearFilters(containerId, requests);
+  document.getElementById(`${containerId}-month`).addEventListener('change', () => filterRequests(containerId));
+  document.getElementById(`${containerId}-year`).addEventListener('change', () => filterRequests(containerId));
 }
+
+function populateMonthYearFilters(containerId, requests) {
+  const monthSelect = document.getElementById(`${containerId}-month`);
+  const yearSelect = document.getElementById(`${containerId}-year`);
+  const dates = requests.map(r => new Date(r.start_date));
+  const months = [...new Set(dates.map(d => d.getMonth()))];
+  const years = [...new Set(dates.map(d => d.getFullYear()))];
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  monthSelect.innerHTML = months
+    .sort((a, b) => a - b)
+    .map(m => `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>${new Date(0, m).toLocaleString('en-US', { month: 'long' })}</option>`)
+    .join('');
+  yearSelect.innerHTML = years
+    .sort((a, b) => a - b)
+    .map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`)
+    .join('');
+}
+
+function filterRequests(containerId) {
+  const month = parseInt(document.getElementById(`${containerId}-month`).value);
+  const year = parseInt(document.getElementById(`${containerId}-year`).value);
+  const items = document.querySelectorAll(`#${containerId}-list .request-item`);
+
+  let anyVisible = false;
+
+  items.forEach(item => {
+    const dateStr = item.getAttribute('data-start-date');
+    if (!dateStr) return item.style.display = 'none';
+    const date = new Date(dateStr);
+    const visible = date.getMonth() === month && date.getFullYear() === year;
+    item.style.display = visible ? '' : 'none';
+    if (visible) anyVisible = true;
+  });
+
+  const noMatchMessageId = `${containerId}-no-match`;
+  const existing = document.getElementById(noMatchMessageId);
+  if (!anyVisible) {
+    if (!existing) {
+      const noMatch = document.createElement('div');
+      noMatch.id = noMatchMessageId;
+      noMatch.className = 'no-requests';
+      noMatch.textContent = 'No requests match the selected filter';
+      document.getElementById(`${containerId}-list`).appendChild(noMatch);
+    }
+  } else {
+    if (existing) existing.remove();
+  }
+}
+
+
 
 function setupDeleteButtons() {
   document.querySelectorAll('.delete-request').forEach(button => {
