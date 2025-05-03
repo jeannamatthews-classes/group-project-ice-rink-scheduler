@@ -1,25 +1,41 @@
+Before Mar 13, Helped create the outline for Final User Requirements
+               Meet with Logan Norris to create final deliverables
+               Created MVP (aim to provide a cost-effective, user-friendly scheduler and invoicing system)
 2025 Mar 13, 45 minutes,  UML Diagram
 2025 Mar 16, 10 minutes,  Created fishem and added to timelog directory
 2025 Mar 24, 30 minutes,  Researching and planning for UI User Login page
 2025 Mar 26, 80 minutes,  Coding UI User Login Page (uncommitted)
-2025 Mar 27, 10 minutes,  Fixed timelog
-2025 Mar 27, 90 minutes,  Committing UI User Login Page
+2025 Mar 27, 100 minutes, Fixed timelog
+                          Committing UI User Login Page
                           Adding css and java Folder
-                          Created style.cs to help with coding conventions.
+                          Created style.cs to help with coding conventions
 2025 Apr 7, 120 minutes,  Committing User Authentication
-2025 Apr 9, 30 minutes,   In-Person Meeting
-2025 Apr 9, 240 mintues,  Researching Flask
+2025 Apr 9, 270 minutes,  In-Person Meeting
+                          Researching Flask
                           Researching Google Cloud SQL
                           Moving files in app
                           Implementing backend database
-2025 Apr 10, 45 minutes,  Continuation of backend database
+2025 Apr 10, 225 minutes, Continuation of backend database
                           Fixing app.py and Flask related code
-2025 Apr 10, 120 minutes, Connecting Flask and Google Cloud SQL
+                          Connecting Flask and Google Cloud SQL
                           Fixing Coding Convetions
-2025 Apr 10, 60 minutes,  In-Person Meeting
+                          In-Person Meeting
                           Review for RAPS
-2025 Apr 11, 30 minutes,  Pre-RAPS meeting
+2025 Apr 11, 120 minutes, Pre-RAPS meeting
                           Going over slides
-2025 Apr 11, 80 minutes,  Presenting in RAPS
+                          Presenting in RAPS
                           Watching others present in RAPS
 2025 Apr 15, 30 mintues,  Fixing user view CSS
+2025 Apr 17, 30 minutes,  In-Person Meeting
+2025 Apr 22, 90 minutes,  Zoom Meeting
+                          Researching conflict checking
+2025 Apr 24, 60 minutes,  Zoom Meeting
+                          Impementing conflict checking
+2025 May 1, 60 minutes,   Zoom Meeting
+                          Proof reading User Manual
+                          Adding photos to User Manual
+2025 May 3, 130 minutes,  Updating UML Diagram
+                          Adding final deliverables
+                          Testing final code
+
+
