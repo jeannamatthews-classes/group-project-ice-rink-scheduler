@@ -10,3 +10,4 @@ flask-bcrypt
 firebase-admin 
 Flask-Limiter
 google-auth-oauthlib
+stripe
