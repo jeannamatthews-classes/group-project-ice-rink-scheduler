@@ -25,14 +25,12 @@ let currentYear = new Date().getFullYear();
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     populateYearFilter();
-    
-    // Load all users immediately
-    handleUserSearch('', true);
+    loadUserRequests(); // Load all requests initially
 });
 
 function setupEventListeners() {
     // User search functionality
-    userSearch.addEventListener('input', debounce(handleUserSearch, 300));
+    userSearch.addEventListener('input', debounce(() => handleUserSearch(userSearch.value), 300));
     
     // Show all users when search input is clicked
     userSearch.addEventListener('click', function() {
@@ -40,31 +38,40 @@ function setupEventListeners() {
             handleUserSearch('', true); // Force load all users
         }
     });
-    
+
+    // Show dropdown on focus if input has value
     userSearch.addEventListener('focus', function() {
         if (userSearch.value.trim() === '' || searchResults.children.length > 0) {
-            handleUserSearch('', true); // Force load all users
+            handleUserSearch(userSearch.value, true); // Keep query-aware
             searchResults.style.display = 'block';
         }
     });
-    
+
+    // Hide search results when clicking outside
     document.addEventListener('click', function(e) {
         if (!searchResults.contains(e.target) && e.target !== userSearch) {
             searchResults.style.display = 'none';
         }
     });
+
+    // Allow Enter to select first search result
+    userSearch.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && searchResults.children.length > 0) {
+            e.preventDefault();
+            const firstResult = searchResults.querySelector('.search-result-item');
+            if (firstResult) {
+                firstResult.click();
+            }
+        }
+    });
+
+    // Filters and navigation
     document.getElementById('paymentFilter').addEventListener('change', applyFilters);
-    
-    // Clear buttons
     clearSearch.addEventListener('click', clearSearchInput);
     clearSelectedUser.addEventListener('click', clearSelectedUserInfo);
-    
-    // Filter changes
     statusFilter.addEventListener('change', applyFilters);
     monthFilter.addEventListener('change', applyFilters);
     yearFilter.addEventListener('change', applyFilters);
-    
-    // Navigation
     backToAdmin.addEventListener('click', function() {
         window.location.href = '/admin';
     });
@@ -93,37 +100,19 @@ function debounce(func, wait) {
 
 async function handleUserSearch(query = '', forceLoadAll = false) {
     query = typeof query === 'string' ? query.trim() : '';
-    
-    // If input is empty or we're forcing load all, show all users
-    if (query === '' || forceLoadAll) {
-        try {
-            const response = await fetch('/api/admin/all-users');
-            const data = await response.json();
-            
-            if (data.users && data.users.length > 0) {
-                displaySearchResults(data.users);
-                searchResults.style.display = 'block';
-            } else {
-                searchResults.innerHTML = '<div class="dropdown-item">No users found</div>';
-                searchResults.style.display = 'block';
-            }
-        } catch (error) {
-            console.error('Error fetching all users:', error);
-            searchResults.innerHTML = '<div class="dropdown-item text-danger">Error loading users</div>';
-            searchResults.style.display = 'block';
-        }
-        return;
-    }
-    
-    if (query.length < 2) {
+
+    if (query === '' && !forceLoadAll) {
         searchResults.style.display = 'none';
         return;
     }
-    
+
     try {
-        const response = await fetch(`/api/admin/search-users?query=${encodeURIComponent(query)}`);
+        const endpoint = forceLoadAll || query === ''
+            ? '/api/admin/all-users'
+            : `/api/admin/search-users?query=${encodeURIComponent(query)}`;
+        const response = await fetch(endpoint);
         const data = await response.json();
-        
+
         if (data.users && data.users.length > 0) {
             displaySearchResults(data.users);
             searchResults.style.display = 'block';
@@ -133,19 +122,19 @@ async function handleUserSearch(query = '', forceLoadAll = false) {
         }
     } catch (error) {
         console.error('Error searching users:', error);
-        searchResults.innerHTML = '<div class="dropdown-item text-danger">Error searching users</div>';
+        searchResults.innerHTML = '<div class="dropdown-item text-danger">Error loading users</div>';
         searchResults.style.display = 'block';
     }
 }
 
 function displaySearchResults(users) {
     searchResults.innerHTML = '';
-    
-    if (users.length === 0) {
+
+    if (!users.length) {
         searchResults.innerHTML = '<div class="dropdown-item">No users found</div>';
         return;
     }
-    
+
     users.forEach(user => {
         const resultItem = document.createElement('div');
         resultItem.className = 'dropdown-item search-result-item';
@@ -154,16 +143,17 @@ function displaySearchResults(users) {
             <div class="text-muted small">${user.email}</div>
             ${user.phone ? `<div class="text-muted small">${user.phone}</div>` : ''}
         `;
-        
+
         resultItem.addEventListener('click', () => {
             selectUser(user);
             searchResults.style.display = 'none';
             userSearch.value = user.full_name;
         });
-        
+
         searchResults.appendChild(resultItem);
     });
 }
+
 
 function selectUser(user) {
     currentUser = user;
@@ -324,6 +314,8 @@ function displayFilteredRequests() {
     filteredRequests.forEach(request => {
         const requestItem = document.createElement('div');
         requestItem.className = 'request-item mb-3 p-3 border rounded';
+        requestItem.dataset.startDate = request.start_date;
+        requestItem.dataset.endDate = request.end_date;
         
         // Determine badge color based on status
         let badgeClass;
@@ -349,7 +341,7 @@ function displayFilteredRequests() {
         
         requestItem.innerHTML = `
             <div class="d-flex justify-content-between align-items-start mb-2">
-                <h6 class="mb-0">${request.rental_name}</h6>
+                <h6 class="mb-0 request-name">${request.rental_name}</h6>
                 <span class="badge ${badgeClass}">${request.request_status}</span>
             </div>
             ${userInfo}
@@ -372,9 +364,19 @@ function displayFilteredRequests() {
             </div>` : ''}
             <div class="d-flex justify-content-between align-items-center">
                 <small class="text-muted">Submitted: ${formatDate(request.request_date)}</small>
-                <button class="btn btn-sm btn-outline-primary view-details" data-request-id="${request.request_id}">
-                    Details
-                </button>
+                <div class="action-buttons">
+                    ${request.request_status === 'approved' || request.request_status === 'admin' && !request.paid && request.amount ? `
+                        <button class="btn btn-sm btn-primary send-invoice" 
+                            data-request-id="${request.request_id}" 
+                            data-user-email="${request.user_email}" 
+                            data-amount="${request.amount}">
+                            <i class="fas fa-paper-plane"></i> Send Invoice
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-sm btn-outline-primary view-details" data-request-id="${request.request_id}">
+                        Details
+                    </button>
+                </div>
             </div>
         `;
         
@@ -387,6 +389,151 @@ function displayFilteredRequests() {
             const requestId = this.getAttribute('data-request-id');
             showRequestDetails(requestId);
         });
+    });
+    
+    // Set up invoice buttons
+    setupInvoiceButtons();
+}
+
+// New function to handle invoice sending
+function setupInvoiceButtons() {
+    document.querySelectorAll('.send-invoice').forEach(button => {
+        button.addEventListener('click', async (e) => {
+            e.preventDefault();
+            
+            const requestId = button.dataset.requestId;
+            const userEmail = button.dataset.userEmail;
+            const amount = parseFloat(button.dataset.amount);
+            
+            // Get additional details from the parent request item
+            const requestItem = button.closest('.request-item');
+            const rentalName = requestItem.querySelector('.request-name').textContent.trim().split('(')[0].trim();
+            const startDate = requestItem.dataset.startDate;
+            const endDate = requestItem.dataset.endDate;
+            
+            if (isNaN(amount) || amount <= 0) {
+                showToast('Cannot send invoice with invalid amount', 'error');
+                return;
+            }
+            
+            if (!userEmail) {
+                showToast('No user email found for this request', 'error');
+                return;
+            }
+            
+            if (confirm(`Send an invoice for $${amount.toFixed(2)} to ${userEmail}?`)) {
+                try {
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                    
+                    const response = await fetch('/api/admin/send_invoice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            request_id: requestId,
+                            user_email: userEmail,
+                            amount: amount,
+                            rental_name: rentalName,
+                            start_date: startDate,
+                            end_date: endDate
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Failed to send invoice');
+                    }
+                    
+                    // If already paid or successfully sent
+                    if (result.paid) {
+                        button.classList.add('invoice-sent');
+                        button.disabled = true;
+                        button.innerHTML = '<i class="fas fa-check"></i> Paid';
+                        showToast('This request has already been paid', 'success');
+                        
+                        // Update the request in our local data
+                        const requestIndex = allUserRequests.findIndex(r => r.request_id == requestId);
+                        if (requestIndex !== -1) {
+                            allUserRequests[requestIndex].paid = true;
+                        }
+                        
+                        // Reapply filters to refresh the view
+                        applyFilters();
+                    } else {
+                        button.classList.add('invoice-sent');
+                        button.innerHTML = '<i class="fas fa-check"></i> Invoice Sent';
+                        showToast('Invoice sent successfully', 'success');
+                    }
+                } catch (error) {
+                    console.error('Error sending invoice:', error);
+                    showToast(`Error: ${error.message}`, 'error');
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-paper-plane"></i> Send Invoice';
+                }
+            }
+        });
+    });
+}
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    // Check if toast container exists, if not create it
+    let toastContainer = document.getElementById('toast-container');
+    
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Generate a unique ID for this toast
+    const toastId = 'toast-' + Date.now();
+    
+    // Determine toast class based on type
+    let typeClass = 'bg-info';
+    switch (type) {
+        case 'success': typeClass = 'bg-success'; break;
+        case 'error': typeClass = 'bg-danger'; break;
+        case 'warning': typeClass = 'bg-warning'; break;
+    }
+    
+    // Create toast element
+    const toastEl = document.createElement('div');
+    toastEl.id = toastId;
+    toastEl.className = `toast ${typeClass} text-white`;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    
+    toastEl.innerHTML = `
+        <div class="toast-header">
+            <strong class="me-auto">${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            ${message}
+        </div>
+    `;
+    
+    // Add toast to container
+    toastContainer.appendChild(toastEl);
+    
+    // Initialize toast
+    const toast = new bootstrap.Toast(toastEl, {
+        autohide: true,
+        delay: 5000
+    });
+    
+    // Show toast
+    toast.show();
+    
+    // Remove from DOM after hidden
+    toastEl.addEventListener('hidden.bs.toast', function() {
+        this.remove();
     });
 }
 
@@ -428,116 +575,98 @@ function showRequestDetails(requestId) {
         paymentSection.style.display = 'none';
     }
     
-    // Action buttons
+    // Action buttons - Removed update and decline buttons from modal
     const actionButtons = document.getElementById('modalActionButtons');
     actionButtons.innerHTML = '';
     
-    if (request.request_status === 'pending') {
-        const approveBtn = document.createElement('button');
-        approveBtn.className = 'btn btn-success me-2';
-        approveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Approve';
-        approveBtn.addEventListener('click', () => updateRequestStatus(request.request_id, 'approved'));
-        
-        const declineBtn = document.createElement('button');
-        declineBtn.className = 'btn btn-danger';
-        declineBtn.innerHTML = '<i class="fas fa-times me-1"></i> Decline';
-        declineBtn.addEventListener('click', () => promptDeclineReason(request.request_id));
-        
-        actionButtons.appendChild(approveBtn);
-        actionButtons.appendChild(declineBtn);
-    } else if (request.request_status === 'approved' && !request.paid && request.amount) {
+    // Only add the send invoice button if approved and not paid
+    if (request.request_status === 'approved' && !request.paid && request.amount) {
         const sendInvoiceBtn = document.createElement('button');
-        sendInvoiceBtn.className = 'btn btn-primary';
+        sendInvoiceBtn.className = 'btn btn-primary send-modal-invoice';
         sendInvoiceBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send Invoice';
-        sendInvoiceBtn.addEventListener('click', () => sendInvoice(request.request_id, request.user_email, request.amount));
+        sendInvoiceBtn.dataset.requestId = request.request_id;
+        sendInvoiceBtn.dataset.userEmail = request.user_email;
+        sendInvoiceBtn.dataset.amount = request.amount;
+        
+        sendInvoiceBtn.addEventListener('click', async () => {
+            // Get additional details for invoice
+            const rentalName = request.rental_name;
+            const startDate = request.start_date;
+            const endDate = request.end_date;
+            
+            // Use the same function logic as the main invoice buttons
+            if (confirm(`Send an invoice for $${parseFloat(request.amount).toFixed(2)} to ${request.user_email}?`)) {
+                try {
+                    sendInvoiceBtn.disabled = true;
+                    sendInvoiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                    
+                    const response = await fetch('/api/admin/send_invoice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            request_id: request.request_id,
+                            user_email: request.user_email,
+                            amount: request.amount,
+                            rental_name: rentalName,
+                            start_date: startDate,
+                            end_date: endDate
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Failed to send invoice');
+                    }
+                    
+                    // If already paid or successfully sent
+                    if (result.paid) {
+                        sendInvoiceBtn.classList.add('invoice-sent');
+                        sendInvoiceBtn.disabled = true;
+                        sendInvoiceBtn.innerHTML = '<i class="fas fa-check"></i> Paid';
+                        showToast('This request has already been paid', 'success');
+                        
+                        // Update request in local data
+                        const requestIndex = allUserRequests.findIndex(r => r.request_id == request.request_id);
+                        if (requestIndex !== -1) {
+                            allUserRequests[requestIndex].paid = true;
+                        }
+                        
+                        // Update modal payment status
+                        document.getElementById('modalPaymentStatus').textContent = 'Paid';
+                        document.getElementById('modalPaymentStatus').className = 'badge bg-success';
+                        
+                        // Close modal and refresh list
+                        setTimeout(() => {
+                            requestDetailsModal.hide();
+                            applyFilters();
+                        }, 1500);
+                    } else {
+                        sendInvoiceBtn.classList.add('invoice-sent');
+                        sendInvoiceBtn.innerHTML = '<i class="fas fa-check"></i> Invoice Sent';
+                        showToast('Invoice sent successfully', 'success');
+                        
+                        // Close modal and refresh list
+                        setTimeout(() => {
+                            requestDetailsModal.hide();
+                            applyFilters();
+                        }, 1500);
+                    }
+                } catch (error) {
+                    console.error('Error sending invoice:', error);
+                    showToast(`Error: ${error.message}`, 'error');
+                    sendInvoiceBtn.disabled = false;
+                    sendInvoiceBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send Invoice';
+                }
+            }
+        });
         
         actionButtons.appendChild(sendInvoiceBtn);
     }
     
     requestDetailsModal.show();
-}
-
-async function updateRequestStatus(requestId, status) {
-    try {
-        const response = await fetch(`/api/admin/update-request/${requestId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                status: status,
-                reason: status === 'denied' ? prompt('Enter reason for declining:') : null
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Update the request in our local data
-            const requestIndex = allUserRequests.findIndex(r => r.request_id == requestId);
-            if (requestIndex !== -1) {
-                allUserRequests[requestIndex].request_status = status;
-                if (status === 'denied') {
-                    allUserRequests[requestIndex].declined_reason = data.reason;
-                }
-            }
-            
-            // Reapply filters to refresh the view
-            applyFilters();
-            requestDetailsModal.hide();
-            
-            // Show success message
-            alert(`Request ${status} successfully!`);
-        } else {
-            alert(`Failed to update request: ${data.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        console.error('Error updating request status:', error);
-        alert('Error updating request status. Please try again.');
-    }
-}
-
-function promptDeclineReason(requestId) {
-    const reason = prompt('Please enter the reason for declining this request:');
-    if (reason !== null) {
-        updateRequestStatus(requestId, 'denied', reason);
-    }
-}
-
-async function sendInvoice(requestId, userEmail, amount) {
-    try {
-        // In a real app, you would integrate with Stripe or another payment processor here
-        // For this example, we'll just mark it as paid in our database
-        
-        const response = await fetch(`/api/admin/mark-paid/${requestId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Update the request in our local data
-            const requestIndex = allUserRequests.findIndex(r => r.request_id == requestId);
-            if (requestIndex !== -1) {
-                allUserRequests[requestIndex].paid = true;
-            }
-            
-            // Reapply filters to refresh the view
-            applyFilters();
-            requestDetailsModal.hide();
-            
-            // Show success message
-            alert(`Invoice sent successfully to ${userEmail} for $${amount}!`);
-        } else {
-            alert(`Failed to send invoice: ${data.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        console.error('Error sending invoice:', error);
-        alert('Error sending invoice. Please try again.');
-    }
 }
 
 function updateRequestCount() {
@@ -571,18 +700,6 @@ function clearSearchInput() {
     userSearch.value = '';
     searchResults.innerHTML = '';
     searchResults.style.display = 'none';
-}
-
-function clearSelectedUserInfo() {
-    currentUser = null;
-    allUserRequests = [];
-    filteredRequests = [];
-    selectedUserInfo.style.display = 'none';
-    requestsList.innerHTML = '';
-    noRequestsMessage.style.display = 'block';
-    requestCount.textContent = '0 requests';
-    paymentSummary.style.display = 'none';
-    userSearch.value = '';
 }
 
 function formatDate(dateString) {

@@ -29,6 +29,11 @@ function loadUserRequests(firebase_uid) {
       renderRequests(pending, 'pendingRequests');
       renderRequests(accepted, 'acceptedRequests');
       renderDeclinedRequests(declined, 'declinedRequests');
+
+      // Apply initial filtering to all containers after rendering
+      filterRequests('pendingRequests');
+      filterRequests('acceptedRequests');
+      filterRequests('declinedRequests');
     })
     .catch(error => {
       console.error("Error loading requests:", error);
@@ -233,6 +238,11 @@ function setupDeleteButtons() {
   document.querySelectorAll('.delete-request').forEach(button => {
     button.addEventListener('click', async (e) => {
       e.preventDefault();
+
+      // Prevent double submission
+      if (button.dataset.deleting === 'true') return;
+      button.dataset.deleting = 'true';
+
       const requestId = button.dataset.requestId;
       const requestItem = button.closest('.request-item');
       const container = requestItem.parentElement;
@@ -252,7 +262,7 @@ function setupDeleteButtons() {
             // Remove the request from UI
             requestItem.remove();
 
-            // Check if container is now empty
+            // If no remaining requests, show fallback message
             if (container.querySelectorAll('.request-item').length === 0) {
               container.innerHTML = '<div class="no-requests">No requests found</div>';
             }
@@ -279,7 +289,13 @@ function setupDeleteButtons() {
 
           button.disabled = false;
           button.innerHTML = '<i class="fas fa-trash"></i> Delete';
+        } finally {
+          // Reset deletion flag
+          button.dataset.deleting = 'false';
         }
+      } else {
+        // Reset if user cancels confirmation
+        button.dataset.deleting = 'false';
       }
     });
   });
@@ -302,7 +318,6 @@ function formatLocalTime(dateString) {
     hour12: true
   }).format(date);
 }
-
 
 
  

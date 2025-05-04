@@ -38,6 +38,11 @@ function loadAllRequests() {
     renderAdminRequests(allAccepted, 'acceptedRequests');
     renderAdminDeclinedRequests(declined, 'declinedRequests');
 
+    // Apply initial filtering to all containers after rendering
+    filterRequests('pendingRequests');
+    filterRequests('acceptedRequests');
+    filterRequests('declinedRequests');
+    
     updateRequestCounters(pending.length, allAccepted.length, declined.length);
     setupRequestActions();
   })
@@ -833,7 +838,7 @@ function showAmountPrompt(requestId) {
     <p>Dates: ${startDate} to ${endDate}</p>
     <div style="margin-bottom: 20px;">
       <label for="amount" style="display: block; margin-bottom: 8px; font-weight: 600;">Amount ($):</label>
-      <input type="number" id="amount" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;" 
+      <input type="number" id="approve_amount" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;" 
              placeholder="Enter amount" min="0" step="0.01" value="0.00">
       <div id="amountError" style="color: #d32f2f; font-size: 0.8em; margin-top: 5px; display: none;">
         Please enter a valid amount
@@ -864,7 +869,7 @@ function showAmountPrompt(requestId) {
   });
   
   document.getElementById('saveApprove').addEventListener('click', async () => {
-    const amountInput = document.getElementById('amount');
+    const amountInput = document.getElementById('approve_amount');
     const amount = parseFloat(amountInput.value);
     const sendEmail = document.getElementById('sendEmailNotification').checked;
     
