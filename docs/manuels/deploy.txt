@@ -1,0 +1,113 @@
+1. Google Cloud Setup
+
+Go to https://console.cloud.google.com and sign in.
+Create a new project and note the Project ID.
+
+Enable Required APIs:
+Go to "APIs & Services > Library".
+Enable the following APIs:
+  - Cloud SQL Admin API
+  - Gmail API
+  - Cloud Scheduler API
+  - App Engine Admin API
+  - Cloud Tasks API (optional, if used)
+
+2. Cloud SQL Setup
+
+Go to SQL section in the GCP Console and create a new instance.
+Choose PostgreSQL or MySQL (depending on your app).
+Configure:
+    - Instance ID
+    - Root password
+    - Region/Zone
+
+Create Database and Tables:
+After the instance is created, go to the "Databases" tab and create a new database.
+Open "Cloud SQL Studio".
+Run your schema SQL queries to create tables.
+
+3. Gmail API Setup
+
+Go to "APIs & Services > OAuth consent screen".
+Select User Type: External.
+Fill in:
+    - App Name: [Your App Name]
+    - Support Email: [Your Google Cloud email]
+    - Developer Email: [Same Google Cloud email]
+Skip scopes, continue.
+Application type: Web Application
+
+Add Authorized URIs:
+Authorized JavaScript origins:
+    - https://your-website.com
+    - http://localhost:8080/
+Authorized redirect URIs:
+    - https://your-website.com
+    - http://localhost:8080/
+
+Download the credentials file, rename it to `credentials.json`, and place it in your app folder.
+
+Generate Gmail Token (run only once for initial auth):
+In `generate_gmail_token.py`, set the credentials file variable to `credentials.json`.
+Run the script: it will open a browser for OAuth consent.
+After success, a `token.json` file is created in your app folder.
+
+Copy the contents of `token.json`, and paste into `.env.gmail`:
+    GMAIL_TOKEN=<paste the content here as a single line>
+
+4. Firebase Setup
+
+Go to https://console.firebase.google.com and create a new project.
+Choose Web App and register your app.
+
+Firebase Authentication:
+Go to Authentication > Get Started.
+Enable Email/Password sign-in.
+
+Firebase Web Config:
+Go to Project Settings > General > Your Apps > Firebase SDK snippet.
+Copy the config object and paste it into:
+    - static/js/login.js
+    - static/js/signup.js
+    - static/js/resetpassword.js
+    - static/js/auth.js
+
+Firebase Admin SDK:
+Go to Project Settings > Service Accounts > Generate new private key.
+Download the file and place it in your app folder.
+Rename it to `firebase.json`.
+
+5. Environment Variables Setup (.env)
+
+Set the following keys in your `.env` file:
+
+    DB_INSTANCE_CONNECTION_NAME=your-project:region:instance
+    DB_USER=your-db-username
+    DB_PASSWORD=your-db-password
+    STRIPE_SECRET_KEY=your-stripe-secret-key
+    STRIPE_WEBHOOK_SECRET=your-stripe-webhook-key
+
+6. Deploy to Google App Engine
+
+Ensure your app has an `app.yaml` file for App Engine.
+Open terminal and navigate to your project folder.
+Run the following commands:
+
+    gcloud auth login
+    gcloud config set project your-project-id
+    gcloud app deploy
+
+Wait for deployment to finish.
+
+Your Flask app should now be live on:
+    https://your-project-id.uc.r.appspot.com
+
+7. Cloud Scheduler Setup
+
+Run these on cmd to deploy cloud scheduler jobs 
+
+gcloud scheduler jobs create http monthly-invoicing --location=us-central1 --schedule="0 6 1 * *" --uri="https://your-project-id.uc.r.appspot.com/api/admin/generate_monthly_invoices" --http-method=POST --attempt-deadline=1800s --time-zone="America/New_York" --oidc-service-account-email=quixotic-bonito-455201-s5@appspot.gserviceaccount.com --oidc-token-audience="https://your-project-id.uc.r.appspot.com/api/admin/generate_monthly_invoices"
+
+gcloud scheduler jobs create http monthly-invoicing --location=us-central1 --schedule="0 1 1 * *" --uri="https://your-project-id.uc.r.appspot.com/api/admin/generate_monthly_invoices" --http-method=POST --attempt-deadline=1800s --time-zone="America/New_York" --oidc-service-account-email=quixotic-bonito-455201-s5@appspot.gserviceaccount.com --oidc-token-audience="https://your-project-id.uc.r.appspot.com/api/admin//api/admin/cleanup_requests"
+
+gcloud scheduler jobs create http monthly-invoicing --location=us-central1 --schedule="0 2 1 * *" --uri="https://your-project-id.uc.r.appspot.com/api/admin/generate_monthly_invoices" --http-method=POST --attempt-deadline=1800s --time-zone="America/New_York" --oidc-service-account-email=quixotic-bonito-455201-s5@appspot.gserviceaccount.com --oidc-token-audience="https://your-project-id.uc.r.appspot.com/api/admin/api/admin/cleanup_renters"
