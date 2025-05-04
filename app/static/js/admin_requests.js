@@ -100,6 +100,11 @@ function isEventPastEndDate(endDate) {
 function renderAdminDeclinedRequests(requests, containerId) {
   const container = document.getElementById(containerId);
 
+  if (!container) {
+    console.error(`Container #${containerId} not found in DOM.`);
+    return;
+  }
+
   if (!requests || requests.length === 0) {
     container.innerHTML = '<div class="no-requests">No declined requests found</div>';
     return;
@@ -114,13 +119,17 @@ function renderAdminDeclinedRequests(requests, containerId) {
   `;
 
   let html = '';
-  requests.forEach(request => {
+  requests.forEach((request, index) => {
+
     const startDate = request.start_date;
     const endDate = request.end_date;
     const formattedRequestDate = formatLocalTime(request.request_date);
 
-    html += 
-      `<div class="request-item" data-request-id="${request.request_id}" data-start-date="${startDate}">
+    html += `
+      <div class="request-item" 
+           data-request-id="${request.request_id}" 
+           data-start-date="${startDate}" 
+           data-end-date="${endDate}">
         <div class="request-header">
           <span class="request-name">
             ${request.rental_name} 
@@ -147,11 +156,27 @@ function renderAdminDeclinedRequests(requests, containerId) {
       </div>`;
   });
 
-  document.getElementById(`${containerId}-list`).innerHTML = html;
-  populateMonthYearFilters(containerId, requests);
-  document.getElementById(`${containerId}-month`).addEventListener('change', () => filterRequests(containerId));
-  document.getElementById(`${containerId}-year`).addEventListener('change', () => filterRequests(containerId));
+  const listContainer = document.getElementById(`${containerId}-list`);
+  if (!listContainer) {
+    console.error(`List container #${containerId}-list not found.`);
+    return;
+  }
 
+  listContainer.innerHTML = html;
+
+  populateMonthYearFilters(containerId, requests);
+
+  const monthDropdown = document.getElementById(`${containerId}-month`);
+  const yearDropdown = document.getElementById(`${containerId}-year`);
+
+  // Filter after rendering
+  filterRequests(containerId);
+
+  // Attach event listeners
+  monthDropdown?.addEventListener('change', () => filterRequests(containerId));
+  yearDropdown?.addEventListener('change', () => filterRequests(containerId));
+
+  // Scroll to today’s item if available
   setTimeout(() => {
     const today = new Date().toISOString().split('T')[0];
     const todayItem = document.querySelector(`#${containerId}-list .request-item[data-start-date="${today}"]`);
@@ -160,6 +185,7 @@ function renderAdminDeclinedRequests(requests, containerId) {
     }
   }, 300);
 }
+
 
 function renderAdminRequests(requests, containerId) {
   const container = document.getElementById(containerId);
