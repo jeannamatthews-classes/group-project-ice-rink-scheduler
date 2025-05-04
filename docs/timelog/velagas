@@ -6,3 +6,12 @@
 2025 Apr 3   60 minutes  Made some UI, Database improvements
 2025 Apr 4   60 minutes  Figuring out cloud and making backend postgres db on google cloud mysql with appropriate amount of resources
 2025 Apr 6   120 minutes  Implemented cloud database and connected python flask backend to it, Made to improvements to UI to work with the calendar
+2025 Apr 11   120 minutes  Added additional calendar for user specific events
+2025 Apr 12   120 minutes  Added network some security features rate limiting and made improvements to api calls
+2025 Apr 19   120 minutes  Added filtering options for rentals based on month and year, Made changes both on front and backend
+2025 Apr 26   120 minutes  Researched stripe API, Worked on implementing stripe payments
+2025 Apr 27   120 minutes  Worked on implementing stripe payments
+2025 May 1   120 minutes  Met with logan, demoed the website and collected, Implemented gmail api to send confirmation emails
+2025 May 2   240 minutes  Added additional functionalities logan asked for, fixed errors
+2025 May 3   180 minutes  Deployed the app, write isntructions for deploying, made the demo video
+
