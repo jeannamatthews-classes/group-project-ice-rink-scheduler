@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, redirect, Blueprint
 import json
 from google.cloud.sql.connector import Connector
 import sqlalchemy
+from sqlalchemy import text, bindparam
 import os
 from datetime import datetime, timedelta
 import pg8000
@@ -20,7 +21,9 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import functions_framework
 import stripe
+
 
 # Initialize Firebase Admin SDK (only once)
 if not firebase_admin._apps:
@@ -248,6 +251,112 @@ def check_admin():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/check-user', methods=['POST'])
+def check_user():
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Missing or invalid Authorization header'}), 401
+
+    token = auth_header.split('Bearer ')[1]
+
+    try:
+        decoded_token = auth.verify_id_token(token)
+        firebase_uid = decoded_token.get('uid')
+        email = decoded_token.get('email')
+
+        if not email or not firebase_uid:
+            return jsonify({'error': 'Invalid token: missing email or uid'}), 400
+
+        print(f"--- /check-user ---\nUser email: {email}, UID: {firebase_uid}")
+
+        with pool.connect() as conn:
+            # Check if user is admin
+            admin_check = conn.execute(
+                sqlalchemy.text("SELECT 1 FROM ice.admin WHERE email = :email"),
+                {"email": email}
+            ).fetchone()
+            is_admin = admin_check is not None
+
+            if is_admin:
+                return jsonify({'message': 'Admin user - no action taken', 'isAdmin': True}), 200
+
+            # Check if user already exists in renter table
+            renter_check = conn.execute(
+                sqlalchemy.text("SELECT renter_id FROM ice.renter WHERE firebase_uid = :uid OR renter_email = :email"),
+                {"uid": firebase_uid, "email": email}
+            ).fetchone()
+
+            if renter_check:
+                return jsonify({'message': 'User already exists in renter table'}), 200
+
+            # Insert minimal info for new user
+            insert_query = sqlalchemy.text("""
+                INSERT INTO ice.renter (first_name, last_name, renter_email, firebase_uid, created_at)
+                VALUES ('missing', 'missing', :email, :uid, NOW())
+                RETURNING renter_id
+            """)
+            result = conn.execute(insert_query, {"email": email, "uid": firebase_uid})
+            renter_id = result.fetchone()[0]
+
+            return jsonify({
+                'message': 'New renter created with minimal info',
+                'renter_id': renter_id
+            }), 201
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@functions_framework.http
+def cleanup_requests(request):
+    try:
+        with pool.connect() as conn:
+            delete_query = sqlalchemy.text("""
+                DELETE FROM ice.rental_request
+                WHERE end_date < (NOW() - INTERVAL '4 months')
+                RETURNING request_id, renter_id, end_date
+            """)
+            result = conn.execute(delete_query)
+            deleted = result.fetchall()
+
+            return jsonify({
+                "message": f"Deleted {len(deleted)} rental request(s)",
+                "deleted_requests": [
+                    {"request_id": row[0], "renter_id": row[1], "end_date": row[2].isoformat()}
+                    for row in deleted
+                ]
+            })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@functions_framework.http
+@app.route('/cleanup-renters', methods=['POST'])
+def cleanup_renters():
+    try:
+        with pool.connect() as conn:
+            # Delete renters older than 1 month with no related rental requests
+            delete_query = sqlalchemy.text("""
+                DELETE FROM ice.renter
+                WHERE created_at < (NOW() - INTERVAL '1 month')
+                AND renter_id NOT IN (
+                    SELECT DISTINCT renter_id FROM ice.rental_request
+                )
+                RETURNING renter_id, renter_email
+            """)
+            result = conn.execute(delete_query)
+            deleted = result.fetchall()
+
+            return jsonify({
+                "message": f"Deleted {len(deleted)} renter(s)",
+                "deleted_renters": [{"renter_id": row[0], "email": row[1]} for row in deleted]
+            })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 def get_user_uid():
     if session.get('is_admin'):
         return None 
@@ -294,6 +403,7 @@ def reset_password():
     return render_template("resetpassword.html")
 
 @app.route('/api/register', methods=['POST'])
+@limiter.limit("100 per month")
 def register_user():
     """Securely register a new user after verifying Firebase ID token"""
     try:
@@ -446,96 +556,7 @@ def search_users():
             "success": False
         }), 500
 
-@app.route('/api/admin/user-requests/<int:user_id>')
-@require_admin(pool)
-def admin_get_user_requests(user_id):
-    """Get all rental requests for a specific user with payment filtering"""
-    try:
-        with pool.connect() as conn:
-            # Convert RowMapping to dictionary for JSON serialization
-            def row_to_dict(row):
-                return {key: value for key, value in row._mapping.items()}
-            
-            # Base query
-            query = sqlalchemy.text("""
-                SELECT 
-                    rr.request_id, 
-                    rr.rental_name, 
-                    rr.additional_desc, 
-                    TO_CHAR(rr.start_date, 'YYYY-MM-DD') as start_date,
-                    TO_CHAR(rr.end_date, 'YYYY-MM-DD') as end_date,
-                    TO_CHAR(rr.start_time, 'HH12:MI AM') as start_time,
-                    TO_CHAR(rr.end_time, 'HH12:MI AM') as end_time,
-                    rr.is_recurring, 
-                    rr.recurrence_rule,
-                    rr.request_date,
-                    CASE 
-                        WHEN rr.rental_status = 'pending' THEN 'pending'
-                        WHEN rr.rental_status = 'approved' THEN 'approved'
-                        WHEN rr.rental_status = 'admin' THEN 'admin'
-                        WHEN rr.rental_status = 'denied' THEN 'declined'
-                        ELSE rr.rental_status
-                    END as request_status,
-                    rr.amount,
-                    rr.paid,
-                    rr.declined_reason,
-                    r.renter_email as user_email,
-                    CONCAT(r.first_name, ' ', r.last_name) as user_name,
-                    r.phone as user_phone,
-                    EXTRACT(MONTH FROM rr.start_date) as month,
-                    EXTRACT(YEAR FROM rr.start_date) as year
-                FROM ice.rental_request rr
-                JOIN ice.renter r ON rr.user_id = r.renter_id
-                WHERE rr.user_id = :user_id
-                ORDER BY rr.start_date DESC, rr.start_time
-            """)
-            
-            requests = [row_to_dict(row) for row in conn.execute(query, {"user_id": user_id})]
-            
-            # Get user information
-            user_query = sqlalchemy.text("""
-                SELECT 
-                    renter_id as user_id,
-                    CONCAT(first_name, ' ', last_name) as full_name,
-                    renter_email as email,
-                    phone
-                FROM ice.renter
-                WHERE renter_id = :user_id
-            """)
-            
-            user_result = conn.execute(user_query, {"user_id": user_id}).fetchone()
-            user = row_to_dict(user_result) if user_result else None
-            
-            # Calculate payment summaries
-            paid_total = sum(float(request['amount'] or 0) for request in requests if request['paid'])
-            unpaid_total = sum(float(request['amount'] or 0) for request in requests 
-                          if not request['paid'] and request['amount'] and (request['request_status'] == 'approved' or request['request_status'] == 'admin'))
-            all_total = sum(float(request['amount'] or 0) for request in requests if request['amount'])
-            
-            return jsonify({
-                "requests": requests,
-                "user": user,
-                "count": len(requests),
-                "payment_summary": {
-                    "paid": paid_total,
-                    "unpaid": unpaid_total,
-                    "total": all_total
-                },
-                "success": True
-            })
-            
-    except sqlalchemy.exc.SQLAlchemyError as e:
-        print(f"Database error fetching user requests: {str(e)}")
-        return jsonify({
-            "error": "Database error occurred",
-            "success": False
-        }), 500
-    except Exception as e:
-        print(f"Unexpected error fetching user requests: {str(e)}")
-        return jsonify({
-            "error": "An unexpected error occurred",
-            "success": False
-        }), 500
+
 
 @app.route('/api/admin/all-users')
 @require_admin(pool)
@@ -791,6 +812,322 @@ def get_user_events(firebase_uid):
         print(f"Error fetching user events: {str(e)}")
         return {"error": str(e)}, 500
 
+@app.route('/api/check_conflicts', methods=['POST'])
+@require_authentication
+def check_conflicts():
+    try:
+        data = request.get_json()
+        print("Received conflict check data:", data)
+        
+        # Validate required fields
+        required_fields = ['start_date', 'end_date', 'start_time', 'end_time']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+
+        # Convert strings to date and time objects
+        proposed_start_date = datetime.strptime(data['start_date'], '%m/%d/%Y').date()
+        proposed_end_date = datetime.strptime(data['end_date'], '%m/%d/%Y').date()
+        proposed_start_time = datetime.strptime(data['start_time'], '%I:%M %p').time()
+        proposed_end_time = datetime.strptime(data['end_time'], '%I:%M %p').time()
+
+        proposed_is_recurring = data.get('is_recurring', False)
+        proposed_recurrence_rule = data.get('recurrence_rule')
+
+        with pool.connect() as conn:
+            rental_query = sqlalchemy.text("""
+                SELECT 
+                    request_id, 
+                    rental_name, 
+                    start_date, 
+                    end_date, 
+                    start_time, 
+                    end_time, 
+                    is_recurring,
+                    recurrence_rule,
+                    rental_status
+                FROM ice.rental_request
+                WHERE 
+                    rental_status IN ('approved', 'admin')
+            """)
+            rental_results = conn.execute(rental_query).fetchall()
+
+            admin_query = sqlalchemy.text("""
+                SELECT 
+                    event_id, 
+                    event_name, 
+                    start_date, 
+                    end_date, 
+                    start_time, 
+                    end_time,
+                    is_recurring,
+                    recurrence_rule
+                FROM ice.admin_event
+            """)
+            admin_results = conn.execute(admin_query).fetchall()
+
+            rental_conflicts_list = []
+            admin_conflicts_list = []
+
+            def times_overlap(t1_start, t1_end, t2_start, t2_end):
+                return t1_start <= t2_end and t1_end >= t2_start
+
+            def days_of_week_match(d1, d2):
+                return d1.weekday() == d2.weekday()
+
+            for rental in rental_results:
+                rental_id, rental_name, rental_start_date, rental_end_date, rental_start_time, rental_end_time, rental_is_recurring, rental_recurrence_rule, rental_status = rental
+                has_conflict = False
+
+                if not proposed_is_recurring and not rental_is_recurring:
+                    dates_overlap = proposed_start_date <= rental_end_date and proposed_end_date >= rental_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+                    has_conflict = dates_overlap and time_overlap
+
+                elif not proposed_is_recurring and rental_is_recurring:
+                    in_range = rental_start_date <= proposed_start_date <= rental_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+                    day_matches = rental_recurrence_rule != 'weekly' or days_of_week_match(proposed_start_date, rental_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and not rental_is_recurring:
+                    in_range = proposed_start_date <= rental_start_date <= proposed_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+                    day_matches = proposed_recurrence_rule != 'weekly' or days_of_week_match(rental_start_date, proposed_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and rental_is_recurring:
+                    dates_overlap = proposed_start_date <= rental_end_date and proposed_end_date >= rental_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+
+                    if proposed_recurrence_rule == 'daily' or rental_recurrence_rule == 'daily':
+                        pattern_conflict = True
+                    elif proposed_recurrence_rule == 'weekly' and rental_recurrence_rule == 'weekly':
+                        pattern_conflict = days_of_week_match(proposed_start_date, rental_start_date)
+                    else:
+                        pattern_conflict = True
+
+                    has_conflict = dates_overlap and time_overlap and pattern_conflict
+
+                if has_conflict:
+                    rental_conflicts_list.append({
+                        "request_id": rental_id,
+                        "rental_name": rental_name,
+                        "start_date": rental_start_date.isoformat(),
+                        "end_date": rental_end_date.isoformat(),
+                        "start_time": str(rental_start_time),
+                        "end_time": str(rental_end_time),
+                        "is_recurring": rental_is_recurring,
+                        "recurrence_rule": rental_recurrence_rule,
+                        "rental_status": rental_status
+                    })
+
+            for admin in admin_results:
+                event_id, event_name, event_start_date, event_end_date, event_start_time, event_end_time, event_is_recurring, event_recurrence_rule = admin
+                has_conflict = False
+
+                if not proposed_is_recurring and not event_is_recurring:
+                    dates_overlap = proposed_start_date <= event_end_date and proposed_end_date >= event_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+                    has_conflict = dates_overlap and time_overlap
+
+                elif not proposed_is_recurring and event_is_recurring:
+                    in_range = event_start_date <= proposed_start_date <= event_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+                    day_matches = event_recurrence_rule != 'weekly' or days_of_week_match(proposed_start_date, event_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and not event_is_recurring:
+                    in_range = proposed_start_date <= event_start_date <= proposed_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+                    day_matches = proposed_recurrence_rule != 'weekly' or days_of_week_match(event_start_date, proposed_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and event_is_recurring:
+                    dates_overlap = proposed_start_date <= event_end_date and proposed_end_date >= event_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+
+                    if proposed_recurrence_rule == 'daily' or event_recurrence_rule == 'daily':
+                        pattern_conflict = True
+                    elif proposed_recurrence_rule == 'weekly' and event_recurrence_rule == 'weekly':
+                        pattern_conflict = days_of_week_match(proposed_start_date, event_start_date)
+                    else:
+                        pattern_conflict = True
+
+                    has_conflict = dates_overlap and time_overlap and pattern_conflict
+
+                if has_conflict:
+                    admin_conflicts_list.append({
+                        "event_id": event_id,
+                        "event_name": event_name,
+                        "start_date": event_start_date.isoformat(),
+                        "end_date": event_end_date.isoformat(),
+                        "start_time": str(event_start_time),
+                        "end_time": str(event_end_time),
+                        "is_recurring": event_is_recurring,
+                        "recurrence_rule": event_recurrence_rule
+                    })
+
+            return jsonify({
+                "has_conflicts": bool(rental_conflicts_list or admin_conflicts_list),
+                "rental_conflicts": rental_conflicts_list,
+                "admin_conflicts": admin_conflicts_list
+            })
+
+    except Exception as e:
+        print("Error checking conflicts:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+def check_for_conflicts(data):
+    try:
+        data = request.get_json()
+        print("Received conflict check data:", data)
+        
+        # Validate required fields
+        required_fields = ['start_date', 'end_date', 'start_time', 'end_time']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+
+        # Convert strings to date and time objects
+        proposed_start_date = datetime.strptime(data['start_date'], '%m/%d/%Y').date()
+        proposed_end_date = datetime.strptime(data['end_date'], '%m/%d/%Y').date()
+        proposed_start_time = datetime.strptime(data['start_time'], '%I:%M %p').time()
+        proposed_end_time = datetime.strptime(data['end_time'], '%I:%M %p').time()
+
+        proposed_is_recurring = data.get('is_recurring', False)
+        proposed_recurrence_rule = data.get('recurrence_rule')
+
+        with pool.connect() as conn:
+            rental_query = sqlalchemy.text("""
+                SELECT 
+                    request_id, 
+                    rental_name, 
+                    start_date, 
+                    end_date, 
+                    start_time, 
+                    end_time, 
+                    is_recurring,
+                    recurrence_rule,
+                    rental_status
+                FROM ice.rental_request
+                WHERE 
+                    rental_status IN ('approved', 'admin')
+            """)
+            rental_results = conn.execute(rental_query).fetchall()
+
+            admin_query = sqlalchemy.text("""
+                SELECT 
+                    event_id, 
+                    event_name, 
+                    start_date, 
+                    end_date, 
+                    start_time, 
+                    end_time,
+                    is_recurring,
+                    recurrence_rule
+                FROM ice.admin_event
+            """)
+            admin_results = conn.execute(admin_query).fetchall()
+
+            rental_conflicts_list = []
+            admin_conflicts_list = []
+
+            def times_overlap(t1_start, t1_end, t2_start, t2_end):
+                return t1_start <= t2_end and t1_end >= t2_start
+
+            def days_of_week_match(d1, d2):
+                return d1.weekday() == d2.weekday()
+
+            for rental in rental_results:
+                rental_id, rental_name, rental_start_date, rental_end_date, rental_start_time, rental_end_time, rental_is_recurring, rental_recurrence_rule, rental_status = rental
+                has_conflict = False
+
+                if not proposed_is_recurring and not rental_is_recurring:
+                    dates_overlap = proposed_start_date <= rental_end_date and proposed_end_date >= rental_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+                    has_conflict = dates_overlap and time_overlap
+
+                elif not proposed_is_recurring and rental_is_recurring:
+                    in_range = rental_start_date <= proposed_start_date <= rental_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+                    day_matches = rental_recurrence_rule != 'weekly' or days_of_week_match(proposed_start_date, rental_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and not rental_is_recurring:
+                    in_range = proposed_start_date <= rental_start_date <= proposed_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+                    day_matches = proposed_recurrence_rule != 'weekly' or days_of_week_match(rental_start_date, proposed_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and rental_is_recurring:
+                    dates_overlap = proposed_start_date <= rental_end_date and proposed_end_date >= rental_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, rental_start_time, rental_end_time)
+
+                    if proposed_recurrence_rule == 'daily' or rental_recurrence_rule == 'daily':
+                        pattern_conflict = True
+                    elif proposed_recurrence_rule == 'weekly' and rental_recurrence_rule == 'weekly':
+                        pattern_conflict = days_of_week_match(proposed_start_date, rental_start_date)
+                    else:
+                        pattern_conflict = True
+
+                    has_conflict = dates_overlap and time_overlap and pattern_conflict
+
+                if has_conflict:
+                    rental_conflicts_list.append({
+                        "request_id": rental_id,
+                        "rental_name": rental_name,
+                        "start_date": rental_start_date.isoformat(),
+                        "end_date": rental_end_date.isoformat(),
+                        "start_time": str(rental_start_time),
+                        "end_time": str(rental_end_time),
+                        "is_recurring": rental_is_recurring,
+                        "recurrence_rule": rental_recurrence_rule,
+                        "rental_status": rental_status
+                    })
+
+            for admin in admin_results:
+                event_id, event_name, event_start_date, event_end_date, event_start_time, event_end_time, event_is_recurring, event_recurrence_rule = admin
+                has_conflict = False
+
+                if not proposed_is_recurring and not event_is_recurring:
+                    dates_overlap = proposed_start_date <= event_end_date and proposed_end_date >= event_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+                    has_conflict = dates_overlap and time_overlap
+
+                elif not proposed_is_recurring and event_is_recurring:
+                    in_range = event_start_date <= proposed_start_date <= event_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+                    day_matches = event_recurrence_rule != 'weekly' or days_of_week_match(proposed_start_date, event_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and not event_is_recurring:
+                    in_range = proposed_start_date <= event_start_date <= proposed_end_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+                    day_matches = proposed_recurrence_rule != 'weekly' or days_of_week_match(event_start_date, proposed_start_date)
+                    has_conflict = in_range and time_overlap and day_matches
+
+                elif proposed_is_recurring and event_is_recurring:
+                    dates_overlap = proposed_start_date <= event_end_date and proposed_end_date >= event_start_date
+                    time_overlap = times_overlap(proposed_start_time, proposed_end_time, event_start_time, event_end_time)
+
+                    if proposed_recurrence_rule == 'daily' or event_recurrence_rule == 'daily':
+                        pattern_conflict = True
+                    elif proposed_recurrence_rule == 'weekly' and event_recurrence_rule == 'weekly':
+                        pattern_conflict = days_of_week_match(proposed_start_date, event_start_date)
+                    else:
+                        pattern_conflict = True
+
+                    has_conflict = dates_overlap and time_overlap and pattern_conflict
+
+                if has_conflict:
+                    return True
+        return False
+
+    except Exception as e:
+        print("Error checking conflicts:", str(e))
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/submit_request', methods=['POST'])
 @limiter.limit("10 per day")
 @require_authentication
@@ -806,6 +1143,20 @@ def submit_request():
             if field not in data:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
         
+        conflict_data = {
+            'start_date': data['start_date'],
+            'end_date': data['end_date'],
+            'start_time': data['start_time'],
+            'end_time': data['end_time'],
+            'is_recurring': data['is_recurring'],
+            'recurrence_rule': data.get('recurrence_rule', None) if data['is_recurring'] else None
+        }
+
+        conflict_result = check_for_conflicts(conflict_data)
+        
+        if conflict_result:
+            return jsonify({"error": "Schedule conflicts with existing bookings"}), 409
+
         with pool.connect() as conn:
             # Get user_id from firebase_uid
             user_query = sqlalchemy.text("""
@@ -875,6 +1226,20 @@ def submit_event():
             if field not in data:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
         
+        conflict_data = {
+            'start_date': data['start_date'],
+            'end_date': data['end_date'],
+            'start_time': data['start_time'],
+            'end_time': data['end_time'],
+            'is_recurring': data['is_recurring'],
+            'recurrence_rule': data.get('recurrence_rule', None) if data['is_recurring'] else None
+        }
+
+        conflict_result = check_for_conflicts(conflict_data)
+        
+        if conflict_result:
+            return jsonify({"error": "Schedule conflicts with existing bookings"}), 409
+
         with pool.connect() as conn:
             # Get user_id from firebase_uid
             user_query = sqlalchemy.text("""
@@ -929,9 +1294,9 @@ def submit_event():
         print("Error submitting request:", str(e))
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/check_user', methods=['POST'])
+@app.route('/api/check_user_email', methods=['POST'])
 @require_admin(pool)
-def check_user():
+def check_user_email():
     """Check if a user exists in the database by email"""
     try:
         data = request.get_json()
@@ -964,7 +1329,7 @@ def check_user():
 @app.route('/api/submit_admin_request', methods=['POST'])
 @require_admin(pool)
 def submit_admin_request():
-    """Submit an admin request on behalf of a user"""
+    """Submit an admin request on behalf of a user and send email notification"""
     try:
         data = request.get_json()
         print("Received admin request data:", data)
@@ -972,14 +1337,28 @@ def submit_admin_request():
         # Required fields validation
         required_fields = [
             'firebase_uid', 'user_email', 'rental_name', 
-            'start_date', 'end_date', 'start_time', 'end_time'
+            'start_date', 'end_date', 'start_time', 'end_time', 'amount'
         ]
         for field in required_fields:
             if field not in data:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
+        
+        conflict_data = {
+            'start_date': data['start_date'],
+            'end_date': data['end_date'],
+            'start_time': data['start_time'],
+            'end_time': data['end_time'],
+            'is_recurring': data['is_recurring'],
+            'recurrence_rule': data.get('recurrence_rule', None) if data['is_recurring'] else None
+        }
+
+        conflict_result = check_for_conflicts(conflict_data)
+        
+        if conflict_result:
+            return jsonify({"error": "Schedule conflicts with existing bookings"}), 409
 
         with pool.connect() as conn:
-
+            
             # 1. Get user_id from email
             user_query = sqlalchemy.text("""
                 SELECT renter_id FROM ice.renter 
@@ -994,18 +1373,18 @@ def submit_admin_request():
                 return jsonify({"error": "Target user not found"}), 404
                 
             user_id = user_result[0]
-
+            
             # 2. Insert the admin request
             insert_query = sqlalchemy.text("""
                 INSERT INTO ice.rental_request 
                 (user_id, rental_name, additional_desc, start_date, end_date, 
-                 start_time, end_time, rental_status, is_recurring, 
-                 recurrence_rule, request_date)
+                start_time, end_time, rental_status, is_recurring,
+                recurrence_rule, request_date, amount)
                 VALUES 
                 (:user_id, :rental_name, :additional_desc, :start_date, :end_date,
-                 :start_time, :end_time, 'admin', :is_recurring,
-                 CASE WHEN :is_recurring THEN :recurrence_rule ELSE NULL END,
-                 NOW())
+                :start_time, :end_time, 'admin', :is_recurring,
+                CASE WHEN :is_recurring THEN :recurrence_rule ELSE NULL END,
+                NOW(), :amount)
                 RETURNING request_id
             """)
             
@@ -1021,18 +1400,73 @@ def submit_admin_request():
                     "end_time": data['end_time'],
                     "is_recurring": data.get('is_recurring', False),
                     "recurrence_rule": data.get('recurrence_rule', 'daily'),
-                    "admin_uid": data['firebase_uid']
+                    "amount": data['amount']
                 }
             )
             
+            request_id = result.fetchone()[0]
+            
+            # Send email notification to the user
+            user_email = data['user_email']
+            rental_name = data['rental_name']
+            start_date = data['start_date']
+            end_date = data['end_date']
+            start_time = data['start_time']
+            end_time = data['end_time']
+            amount = float(data['amount'])
+            
+            email_subject = f"Ice rental: {rental_name}"
+            email_body = f"""
+            <html>
+            <body>
+                <h2>You have a new ice rental event</h2>
+                <p>An administrator has created a rental request on your behalf.</p>
+                <p><strong>Rental:</strong> {rental_name}</p>
+                <p><strong>Dates:</strong> {start_date} to {end_date}</p>
+                <p><strong>Time:</strong> {start_time} to {end_time}</p>
+                <p><strong>Amount:</strong> ${amount:.2f}</p>
+                <p>You can pay by cash, cheque or credit card at the time of the event. You will be invoiced monthly for unpaid rentals.</p>
+                <p>If you have any questions, please contact lnorris@clarkson.edu.</p>
+            </body>
+            </html>
+            """
+            
+            # Send email via Gmail API
+            service = get_gmail_service()
+            if not service:
+                print("Error: Gmail service unavailable")
+                return jsonify({
+                    'success': True, 
+                    'message': 'Admin request created but email notification failed to send',
+                    'request_id': request_id,
+                    'email_sent': False
+                })
+            
+            message = MIMEText(email_body, 'html')
+            message['to'] = user_email
+            message['subject'] = email_subject
+            
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+            message_object = {'raw': raw_message}
+            
+            sent_message = service.users().messages().send(
+                userId='me', 
+                body=message_object
+            ).execute()
+            
+            print(f"Admin request notification email sent successfully to {user_email}")
             
             return jsonify({
-                "message": "Admin request submitted successfully",
-                "request_id": result.fetchone()[0]
+                "success": True,
+                "message": "Admin request submitted successfully and notification sent",
+                "request_id": request_id,
+                "email_sent": True,
+                "email_id": sent_message.get('id', None)
             })
-            
+        
     except Exception as e:
         print("Error submitting admin request:", str(e))
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/user_requests/<firebase_uid>')
@@ -1177,6 +1611,96 @@ def get_user_requests(firebase_uid):
     except Exception as e:
         print(f"Unexpected error fetching requests for {firebase_uid}: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
+
+@app.route('/api/admin/user-requests/<int:user_id>')
+@require_admin(pool)
+def admin_get_user_requests(user_id):
+    """Get all rental requests for a specific user with payment filtering"""
+    try:
+        with pool.connect() as conn:
+            # Convert RowMapping to dictionary for JSON serialization
+            def row_to_dict(row):
+                return {key: value for key, value in row._mapping.items()}
+            
+            # Base query
+            query = sqlalchemy.text("""
+                SELECT 
+                    rr.request_id, 
+                    rr.rental_name, 
+                    rr.additional_desc, 
+                    TO_CHAR(rr.start_date, 'YYYY-MM-DD') as start_date,
+                    TO_CHAR(rr.end_date, 'YYYY-MM-DD') as end_date,
+                    TO_CHAR(rr.start_time, 'HH12:MI AM') as start_time,
+                    TO_CHAR(rr.end_time, 'HH12:MI AM') as end_time,
+                    rr.is_recurring, 
+                    rr.recurrence_rule,
+                    rr.request_date,
+                    CASE 
+                        WHEN rr.rental_status = 'pending' THEN 'pending'
+                        WHEN rr.rental_status = 'approved' THEN 'approved'
+                        WHEN rr.rental_status = 'denied' THEN 'declined'
+                        ELSE rr.rental_status
+                    END as request_status,
+                    rr.amount,
+                    rr.paid,
+                    rr.declined_reason,
+                    r.renter_email as user_email,
+                    CONCAT(r.first_name, ' ', r.last_name) as user_name,
+                    r.phone as user_phone,
+                    EXTRACT(MONTH FROM rr.start_date) as month,
+                    EXTRACT(YEAR FROM rr.start_date) as year
+                FROM ice.rental_request rr
+                JOIN ice.renter r ON rr.user_id = r.renter_id
+                WHERE rr.user_id = :user_id
+                ORDER BY rr.start_date DESC, rr.start_time
+            """)
+            
+            requests = [row_to_dict(row) for row in conn.execute(query, {"user_id": user_id})]
+            
+            # Get user information
+            user_query = sqlalchemy.text("""
+                SELECT 
+                    renter_id as user_id,
+                    CONCAT(first_name, ' ', last_name) as full_name,
+                    renter_email as email,
+                    phone
+                FROM ice.renter
+                WHERE renter_id = :user_id
+            """)
+            
+            user_result = conn.execute(user_query, {"user_id": user_id}).fetchone()
+            user = row_to_dict(user_result) if user_result else None
+            
+            # Calculate payment summaries
+            paid_total = sum(float(request['amount'] or 0) for request in requests if request['paid'])
+            unpaid_total = sum(float(request['amount'] or 0) for request in requests 
+                          if not request['paid'] and request['amount'] and request['request_status'] in ('approved','admin'))
+            all_total = sum(float(request['amount'] or 0) for request in requests if request['amount'])
+            
+            return jsonify({
+                "requests": requests,
+                "user": user,
+                "count": len(requests),
+                "payment_summary": {
+                    "paid": paid_total,
+                    "unpaid": unpaid_total,
+                    "total": all_total
+                },
+                "success": True
+            })
+            
+    except sqlalchemy.exc.SQLAlchemyError as e:
+        print(f"Database error fetching user requests: {str(e)}")
+        return jsonify({
+            "error": "Database error occurred",
+            "success": False
+        }), 500
+    except Exception as e:
+        print(f"Unexpected error fetching user requests: {str(e)}")
+        return jsonify({
+            "error": "An unexpected error occurred",
+            "success": False
+        }), 500
 
 @app.route('/api/admin/events')
 @require_admin(pool)
@@ -1484,7 +2008,8 @@ def approve_request(request_id):
                 <p><strong>Rental:</strong> {rental_name}</p>
                 <p><strong>Dates:</strong> {start_date} to {end_date}</p>
                 <p><strong>Amount:</strong> ${amount:.2f}</p>
-                <p>Thank you for your request. If you have any questions, please contact us.</p>
+                <p>You can pay by cash,cheque or credit card at the time of the event, You will be invoiced monthly for unpaid rentals.</p>
+                <p>Thank you for your request. If you have any questions, please contact lnorris@clarkson.edu.</p>
             </body>
             </html>
             """
@@ -1587,7 +2112,7 @@ def decline_request(request_id):
                 <p><strong>Rental:</strong> {rental_name}</p>
                 <p><strong>Dates:</strong> {start_date} to {end_date}</p>
                 <p><strong>Reason:</strong> {reason}</p>
-                <p>If you have any questions or would like to discuss this further, please contact us.</p>
+                <p>If you have any questions or would like to discuss this further, please contact lnorris@clarkson.edu.</p>
             </body>
             </html>
             """
@@ -1853,32 +2378,13 @@ def process_recurring_events(events, start_date, end_date):
         if event['recurrence_rule'] == 'daily':
             while current_date <= end_date_recur:
                 processed_events.append(format_event(event, current_date))
-                current_date += timedelta(days=1)
-                
+                current_date += timedelta(days=1)       
         elif event['recurrence_rule'] == 'weekly':
             original_weekday = current_date.weekday()
             while current_date <= end_date_recur:
                 if current_date.weekday() == original_weekday:
                     processed_events.append(format_event(event, current_date))
                 current_date += timedelta(days=1)
-                
-        elif event['recurrence_rule'] == 'monthly':
-            original_day = current_date.day
-            while current_date <= end_date_recur:
-                # Handle month boundaries
-                next_month = (current_date.replace(day=1) + timedelta(days=32)).replace(day=1)
-                last_day_of_month = next_month - timedelta(days=1)
-                event_day = min(original_day, last_day_of_month.day)
-                
-                event_date = current_date.replace(day=event_day)
-                processed_events.append(format_event(event, event_date))
-                
-                # Move to next month
-                try:
-                    current_date = current_date.replace(day=1) + timedelta(days=32)
-                    current_date = current_date.replace(day=original_day)
-                except ValueError:
-                    current_date = (current_date.replace(day=1) + timedelta(days=63)).replace(day=1) - timedelta(days=1)
     
     return processed_events
 
@@ -2078,7 +2584,7 @@ def send_invoice():
             <p><strong>Amount Due:</strong> ${amount:.2f}</p>
             <p>Please click the link below to view and pay your invoice:</p>
             <p><a href="{payment_link}">View Invoice</a></p>
-            <p>If you have any questions, please contact us.</p>
+            <p>If you have any questions, please contact lnorris@clarkson.edu.</p>
             <p>Thank you!</p>
         </body>
         </html>
@@ -2117,49 +2623,440 @@ def send_invoice():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+# Generate monthly invoices for all users with unpaid rental requests
+@functions_framework.http
+@app.route('/api/admin/generate_monthly_invoices', methods=['POST'])
+def generate_monthly_invoices():
+    """
+    Cloud Run function to generate monthly invoices for all users with unpaid rental requests
+    This can be triggered by Cloud Scheduler on a monthly basis
+    """
+    try:
+        # Get previous month and year
+        now = datetime.now()
+        # Calculate previous month
+        if now.month == 1:  # January
+            previous_month = 12
+            previous_year = now.year - 1
+        else:
+            previous_month = now.month - 1
+            previous_year = now.year
+        
+        print(f"Generating monthly invoices for previous month: {previous_month}/{previous_year}")
+        
+        # Find all users with unpaid rental requests
+        with pool.connect() as conn:
+            # Get all users with unpaid requests that haven't been included in a monthly invoice yet
+            query = sqlalchemy.text("""
+            WITH users_with_requests AS (
+                SELECT DISTINCT 
+                    r.renter_id as user_id,
+                    r.renter_email as user_email,
+                    CONCAT(r.first_name, ' ', r.last_name) as user_name
+                FROM 
+                    ice.renter r
+                JOIN 
+                    ice.rental_request rr ON r.renter_id = rr.user_id
+                WHERE 
+                    rr.rental_status in ('approved','admin') 
+                    AND (rr.paid = FALSE OR rr.paid IS NULL)
+                    AND EXTRACT(MONTH FROM rr.start_date) = :month
+                    AND EXTRACT(YEAR FROM rr.start_date) = :year
+            )
+            SELECT 
+                u.user_id,
+                u.user_email,
+                u.user_name,
+                COALESCE(
+                    (SELECT EXISTS(
+                        SELECT 1 FROM ice.monthly_invoice 
+                        WHERE user_id = u.user_id 
+                        AND invoice_month = :month 
+                        AND invoice_year = :year
+                    )), FALSE
+                ) as invoice_exists
+            FROM 
+                users_with_requests u
+            """)
+            
+            users = conn.execute(query, {"month": previous_month, "year": previous_year}).fetchall()
+        
+        print(f"Found {len(users)} users with unpaid rental requests")
+        
+        invoices_created = 0
+        invoices_skipped = 0
+        
+        for user in users:
+            user_id = user.user_id
+            user_email = user.user_email
+            user_name = user.user_name
+            invoice_exists = user.invoice_exists
+            
+            if invoice_exists:
+                print(f"Monthly invoice already exists for user {user_id} for {previous_month}/{previous_year}")
+                invoices_skipped += 1
+                continue
+            
+            # Calculate total amount due for this user for the previous month
+            with pool.connect() as conn:
+                amount_query = sqlalchemy.text("""
+                SELECT 
+                    SUM(amount) as total_amount,
+                    array_agg(request_id) as request_ids,
+                    array_agg(rental_name) as rental_names,
+                    array_agg(TO_CHAR(start_date, 'YYYY-MM-DD')) as start_dates,
+                    array_agg(TO_CHAR(end_date, 'YYYY-MM-DD')) as end_dates
+                FROM 
+                    ice.rental_request
+                WHERE 
+                    user_id = :user_id
+                    AND rental_status = 'approved'
+                    AND (paid = FALSE OR paid IS NULL)
+                    AND EXTRACT(MONTH FROM start_date) = :month
+                    AND EXTRACT(YEAR FROM start_date) = :year
+                """)
+                
+                result = conn.execute(amount_query, {
+                    "user_id": user_id,
+                    "month": previous_month,
+                    "year": previous_year
+                }).fetchone()
+                
+                if not result or not result.total_amount:
+                    print(f"No unpaid rentals found for user {user_id}")
+                    continue
+                
+                total_amount = result.total_amount
+                request_ids = result.request_ids
+                rental_names = result.rental_names
+                start_dates = result.start_dates
+                end_dates = result.end_dates
+            
+            print(f"Creating monthly invoice for user {user_id} in the amount of ${total_amount}")
+            
+            # Create a Stripe invoice
+            try:
+                # 1. Create or retrieve Customer
+                customers = stripe.Customer.list(email=user_email, limit=1)
+                
+                if customers and customers.data:
+                    customer = customers.data[0]
+                    print(f"Using existing Stripe customer: {customer.id}")
+                else:
+                    customer = stripe.Customer.create(
+                        email=user_email,
+                        name=user_name,
+                        metadata={"user_id": str(user_id)}
+                    )
+                    print(f"Created new Stripe customer: {customer.id}")
+                
+                # 2. Create Invoice Item
+                invoice_description = f"Monthly Invoice - {previous_month}/{previous_year}"
+                
+                invoice_item = stripe.InvoiceItem.create(
+                    customer=customer.id,
+                    amount=int(total_amount * 100),  # Amount in cents
+                    currency='usd',
+                    description=invoice_description
+                )
+                
+                # 3. Create Invoice with auto_advance=True to automatically finalize
+                invoice = stripe.Invoice.create(
+                    customer=customer.id,
+                    collection_method='send_invoice',
+                    days_until_due=7,
+                    auto_advance=True,
+                    metadata={
+                        "user_id": str(user_id),
+                        "month": str(previous_month),
+                        "year": str(previous_year),
+                        "request_ids": ",".join(map(str, request_ids))
+                    },
+                    pending_invoice_items_behavior='include'
+                )
+                
+                # 4. Explicitly finalize the invoice
+                finalized_invoice = stripe.Invoice.finalize_invoice(invoice.id)
+                payment_link = finalized_invoice.hosted_invoice_url
+                
+                # 5. Insert record into monthly_invoice table
+                with pool.connect() as conn:
+                    insert_query = sqlalchemy.text("""
+                    INSERT INTO ice.monthly_invoice 
+                    (user_id, invoice_month, invoice_year, amount, payment_link, stripe_invoice_id)
+                    VALUES (:user_id, :month, :year, :amount, :payment_link, :stripe_invoice_id)
+                    """)
+                    
+                    conn.execute(insert_query, {
+                        "user_id": user_id,
+                        "month": previous_month,
+                        "year": previous_year,
+                        "amount": total_amount,
+                        "payment_link": payment_link,
+                        "stripe_invoice_id": invoice.id
+                    })
+                
+                # 6. Send email with invoice link
+                send_monthly_invoice_email(
+                    user_email=user_email,
+                    user_name=user_name,
+                    amount=total_amount,
+                    payment_link=payment_link,
+                    month=previous_month,
+                    year=previous_year,
+                    rental_names=rental_names,
+                    start_dates=start_dates,
+                    end_dates=end_dates
+                )
+                
+                invoices_created += 1
+                
+            except stripe.error.StripeError as e:
+                print(f"Stripe error for user {user_id}: {str(e)}")
+                continue
+            except Exception as e:
+                print(f"Error creating invoice for user {user_id}: {str(e)}")
+                traceback.print_exc()
+                continue
+        
+        return jsonify({
+            'success': True,
+            'invoices_created': invoices_created,
+            'invoices_skipped': invoices_skipped,
+            'month': previous_month,
+            'year': previous_year
+        })
+    
+    except Exception as e:
+        print(f"Error generating monthly invoices: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
+def send_monthly_invoice_email(user_email, user_name, amount, payment_link, month, year, rental_names, start_dates, end_dates):
+    """Send monthly invoice email to user"""
+    try:
+        # Create a table of rentals
+        rental_rows = ""
+        for i in range(len(rental_names)):
+            rental_rows += f"""
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;">{rental_names[i]}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">{start_dates[i]}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">{end_dates[i]}</td>
+            </tr>
+            """
+        
+        # Format month name
+        month_name = datetime(year, month, 1).strftime('%B')
+        
+        email_subject = f"Monthly Invoice - {month_name} {year}"
+        email_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+            <h2>Monthly Invoice - {month_name} {year}</h2>
+            <p>Dear {user_name},</p>
+            <p>Here is your monthly invoice for rentals during {month_name} {year}.</p>
+            
+            <h3>Rental Summary:</h3>
+            <table style="border-collapse: collapse; width: 100%;">
+                <tr style="background-color: #f2f2f2;">
+                    <th style="padding: 8px; border: 1px solid #ddd;">Rental Name</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Start Date</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">End Date</th>
+                </tr>
+                {rental_rows}
+            </table>
+            
+            <p><strong>Total Amount Due:</strong> ${amount:.2f}</p>
+            
+            <p>Please click the link below to view and pay your invoice:</p>
+            <p><a href="{payment_link}" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;">Pay Invoice</a></p>
+            
+            <p>If you have any questions, please contact lnorris@clarkson.edu.</p>
+            <p>Thank you!</p>
+        </body>
+        </html>
+        """
+        
+        # Send email via Gmail API
+        service = get_gmail_service()
+        if not service:
+            raise Exception("Gmail service unavailable")
+        
+        message = MIMEText(email_body, 'html')
+        message['to'] = user_email
+        message['subject'] = email_subject
+        
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        message_object = {'raw': raw_message}
+        
+        sent_message = service.users().messages().send(
+            userId='me', 
+            body=message_object
+        ).execute()
+        
+        print(f"Monthly invoice email sent successfully to {user_email}")
+        
+        return True
+    
+    except Exception as e:
+        print(f"Error sending monthly invoice email: {str(e)}")
+        traceback.print_exc()
+        return False
+
+# Enhanced webhook handler to process monthly invoice payments
 @app.route('/stripe-webhook', methods=['POST'])
 def stripe_webhook():
-    """Handle Stripe webhook events - specifically invoice.paid"""
+    """Handle Stripe webhook events - invoice.paid for both individual and monthly invoices"""
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
     STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
-
+    
     try:
         # Verify webhook signature
         event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
         print("✅ Received event:", event['type'])
-
+        
         if event['type'] != 'invoice.paid':
             print("ℹ️ Ignored event type:", event['type'])
             return jsonify({'status': 'ignored'}), 200
-
+        
         invoice = event['data']['object']
         print("📄 Invoice object:", invoice)
-
-        request_id = invoice.get('metadata', {}).get('request_id')
-        if not request_id:
-            print("⚠️ No request_id in invoice metadata")
-            return jsonify({'status': 'no request_id'}), 200
-
-        try:
-            with pool.connect() as conn:
-                with conn.begin():
-                    update_query = sqlalchemy.text(
-                        "UPDATE ice.rental_request SET paid = TRUE WHERE request_id = :request_id"
-                    )
-                    result = conn.execute(update_query, {"request_id": request_id})
-                    print(f"✅ DB updated for request_id={request_id}, rows affected: {result.rowcount}")
-        except Exception as db_error:
-            print("❌ Database error:", db_error)
-
-        return jsonify({'status': 'success'}), 200
-
+        
+        # Check if this is a monthly invoice
+        metadata = invoice.get('metadata', {})
+        user_id = metadata.get('user_id')
+        month = metadata.get('month')
+        year = metadata.get('year')
+        request_ids = metadata.get('request_ids')
+        
+        if user_id and month and year:
+            # This is a monthly invoice
+            print(f"📅 Processing monthly invoice payment for user {user_id}, {month}/{year}")
+            
+            try:
+                with pool.connect() as conn:
+                    with conn.begin():
+                        # Update monthly invoice status
+                        update_query = sqlalchemy.text("""
+                        UPDATE ice.monthly_invoice 
+                        SET paid = TRUE, 
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = :user_id 
+                        AND invoice_month = :month 
+                        AND invoice_year = :year
+                        """)
+                        
+                        result = conn.execute(update_query, {
+                            "user_id": user_id,
+                            "month": int(month),
+                            "year": int(year)
+                        })
+                        
+                        print(f"✅ Monthly invoice updated for user {user_id}, rows affected: {result.rowcount}")
+                        
+                        # Update all unpaid rental requests for this user
+                        if request_ids:
+                            request_id_list = [int(id) for id in request_ids.split(',')]
+                            
+                            update_requests_query = sqlalchemy.text("""
+                            UPDATE ice.rental_request 
+                            SET paid = TRUE 
+                            WHERE request_id = ANY(:request_ids)
+                            """)
+                            
+                            req_result = conn.execute(update_requests_query, {
+                                "request_ids": request_id_list
+                            })
+                            
+                            print(f"✅ Updated {req_result.rowcount} rental requests to paid status")
+                
+                return jsonify({'status': 'success', 'type': 'monthly_invoice'}), 200
+            
+            except Exception as db_error:
+                print("❌ Database error processing monthly invoice:", db_error)
+                traceback.print_exc()
+                return jsonify({'error': str(db_error)}), 500
+        
+        else:
+            # This is an individual invoice
+            request_id = metadata.get('request_id')
+            if not request_id:
+                print("⚠️ No request_id or user_id in invoice metadata")
+                return jsonify({'status': 'no metadata identifier'}), 200
+            
+            try:
+                with pool.connect() as conn:
+                    with conn.begin():
+                        update_query = sqlalchemy.text(
+                            "UPDATE ice.rental_request SET paid = TRUE WHERE request_id = :request_id"
+                        )
+                        result = conn.execute(update_query, {"request_id": request_id})
+                        print(f"✅ DB updated for request_id={request_id}, rows affected: {result.rowcount}")
+            except Exception as db_error:
+                print("❌ Database error:", db_error)
+                return jsonify({'error': str(db_error)}), 500
+        
+        return jsonify({'status': 'success', 'type': 'individual_invoice'}), 200
+    
     except (stripe.error.SignatureVerificationError, ValueError) as e:
         print("❌ Signature verification error:", e)
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         print("❌ Unexpected error:", e)
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+# API endpoint to view monthly invoices for admin
+@app.route('/api/admin/monthly_invoices', methods=['GET'])
+def get_monthly_invoices():
+    """Get all monthly invoices for admin view"""
+    try:
+        with pool.connect() as conn:
+            query = sqlalchemy.text("""
+            SELECT 
+                mi.invoice_id,
+                mi.user_id,
+                CONCAT(r.first_name, ' ', r.last_name) as user_name,
+                r.renter_email as user_email,
+                mi.invoice_month,
+                mi.invoice_year,
+                TO_CHAR(TO_DATE(mi.invoice_month::text, 'MM'), 'Month') as month_name,
+                mi.amount,
+                mi.payment_link,
+                mi.paid,
+                mi.created_at,
+                mi.updated_at,
+                COUNT(rr.request_id) as request_count
+            FROM 
+                ice.monthly_invoice mi
+            JOIN 
+                ice.renter r ON mi.user_id = r.renter_id
+            LEFT JOIN 
+                ice.rental_request rr ON r.renter_id = rr.user_id AND 
+                rr.rental_status = 'approved' AND 
+                (rr.paid = (mi.paid = TRUE))
+            GROUP BY 
+                mi.invoice_id, r.renter_id, r.first_name, r.last_name, r.renter_email
+            ORDER BY 
+                mi.invoice_year DESC, mi.invoice_month DESC, mi.created_at DESC
+            """)
+            
+            # Convert RowMapping to dictionary for JSON serialization
+            def row_to_dict(row):
+                return {key: value for key, value in row._mapping.items()}
+            
+            invoices = [row_to_dict(row) for row in conn.execute(query)]
+            
+            return jsonify({
+                "invoices": invoices,
+                "count": len(invoices),
+                "success": True
+            })
+    
+    except Exception as e:
+        print(f"Error fetching monthly invoices: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
