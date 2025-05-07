@@ -19,21 +19,22 @@ function loadUserRequests(firebase_uid) {
         throw new Error(data.error);
       }
 
-      // Ensure data is in proper format
       const requests = Array.isArray(data.requests) ? data.requests : [];
 
       const pending = requests.filter(r => r.request_status === 'pending');
-      const accepted = requests.filter(r => r.request_status === 'approved'  || r.request_status === 'admin');
+      const accepted = requests.filter(r => r.request_status === 'approved' || r.request_status === 'admin');
       const declined = requests.filter(r => r.request_status === 'declined');
 
       renderRequests(pending, 'pendingRequests');
       renderRequests(accepted, 'acceptedRequests');
       renderDeclinedRequests(declined, 'declinedRequests');
 
-      // Apply initial filtering to all containers after rendering
-      filterRequests('pendingRequests');
-      filterRequests('acceptedRequests');
-      filterRequests('declinedRequests');
+      // Delay filtering until DOM is rendered
+      setTimeout(() => {
+        filterRequests('pendingRequests');
+        filterRequests('acceptedRequests');
+        filterRequests('declinedRequests');
+      }, 0);
     })
     .catch(error => {
       console.error("Error loading requests:", error);
@@ -202,9 +203,18 @@ function populateMonthYearFilters(containerId, requests) {
 }
 
 function filterRequests(containerId) {
-  const month = parseInt(document.getElementById(`${containerId}-month`).value);
-  const year = parseInt(document.getElementById(`${containerId}-year`).value);
-  const items = document.querySelectorAll(`#${containerId}-list .request-item`);
+  const monthElem = document.getElementById(`${containerId}-month`);
+  const yearElem = document.getElementById(`${containerId}-year`);
+  const itemsContainer = document.getElementById(`${containerId}-list`);
+
+  if (!monthElem || !yearElem || !itemsContainer) {
+    console.warn(`Filter controls not found for container: ${containerId}`);
+    return;
+  }
+
+  const month = parseInt(monthElem.value);
+  const year = parseInt(yearElem.value);
+  const items = itemsContainer.querySelectorAll('.request-item');
 
   let anyVisible = false;
 
@@ -225,21 +235,18 @@ function filterRequests(containerId) {
       noMatch.id = noMatchMessageId;
       noMatch.className = 'no-requests';
       noMatch.textContent = 'No requests match the selected filter';
-      document.getElementById(`${containerId}-list`).appendChild(noMatch);
+      itemsContainer.appendChild(noMatch);
     }
   } else {
     if (existing) existing.remove();
   }
 }
 
-
-
 function setupDeleteButtons() {
   document.querySelectorAll('.delete-request').forEach(button => {
     button.addEventListener('click', async (e) => {
       e.preventDefault();
 
-      // Prevent double submission
       if (button.dataset.deleting === 'true') return;
       button.dataset.deleting = 'true';
 
@@ -259,10 +266,8 @@ function setupDeleteButtons() {
           const result = await response.json();
 
           if (response.ok) {
-            // Remove the request from UI
             requestItem.remove();
 
-            // If no remaining requests, show fallback message
             if (container.querySelectorAll('.request-item').length === 0) {
               container.innerHTML = '<div class="no-requests">No requests found</div>';
             }
@@ -290,24 +295,18 @@ function setupDeleteButtons() {
           button.disabled = false;
           button.innerHTML = '<i class="fas fa-trash"></i> Delete';
         } finally {
-          // Reset deletion flag
           button.dataset.deleting = 'false';
         }
       } else {
-        // Reset if user cancels confirmation
         button.dataset.deleting = 'false';
       }
     });
   });
 }
 
-/**
- * Format request_date to Eastern Time
- */
 function formatLocalTime(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString); // parsed as UTC
-
+  const date = new Date(dateString);
   return new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -318,6 +317,3 @@ function formatLocalTime(dateString) {
     hour12: true
   }).format(date);
 }
-
-
- 

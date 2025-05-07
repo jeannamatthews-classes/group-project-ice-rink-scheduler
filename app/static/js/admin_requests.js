@@ -38,10 +38,12 @@ function loadAllRequests() {
     renderAdminRequests(allAccepted, 'acceptedRequests');
     renderAdminDeclinedRequests(declined, 'declinedRequests');
 
-    // Apply initial filtering to all containers after rendering
-    filterRequests('pendingRequests');
-    filterRequests('acceptedRequests');
-    filterRequests('declinedRequests');
+    // Delay filtering until DOM is rendered
+    setTimeout(() => {
+      filterRequests('pendingRequests');
+      filterRequests('acceptedRequests');
+      filterRequests('declinedRequests');
+    }, 0);
     
     updateRequestCounters(pending.length, allAccepted.length, declined.length);
     setupRequestActions();

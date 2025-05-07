@@ -1,10 +1,11 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyA_VXKD9_HiLyNZnzwAn7UB9RPrvMJSMPM",
-  authDomain: "icerinkscheduling.firebaseapp.com",
-  projectId: "icerinkscheduling",
-  storageBucket: "icerinkscheduling.appspot.com",
-  messagingSenderId: "887329525211",
-  appId: "1:887329525211:web:75bc17a1639dfdc5d4abfe"
+  apiKey: "AIzaSyDOJnX2Cfp5ibbxl18jb_-44-n5NxNF_6Y",
+  authDomain: "clarksonicerink2.firebaseapp.com",
+  projectId: "clarksonicerink2",
+  storageBucket: "clarksonicerink2.firebasestorage.app",
+  messagingSenderId: "763006421145",
+  appId: "1:763006421145:web:b26bf97a527913495a1008",
+  measurementId: "G-D1WC6SSD6W"
 };
 
 firebase.initializeApp(firebaseConfig);

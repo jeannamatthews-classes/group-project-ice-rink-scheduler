@@ -6,18 +6,6 @@ function setupRequestForm() {
     allowInput: true,
   });
 
-  const DatePicker = flatpickr("#recurring-end", {
-    dateFormat: "m/d/Y",
-    allowInput: true,
-    onOpen: function (selectedDates, dateStr, instance) {
-
-      const min = new Date();
-
-      instance.set('minDate', min);
-
-    }
-  });
-
   const recurringEndPicker = flatpickr("#recurring-end", {
     dateFormat: "m/d/Y",
     allowInput: true,
@@ -39,7 +27,6 @@ function setupRequestForm() {
     }
   });
   
-
   const startTimePicker = flatpickr("#start-time", {
     enableTime: true,
     noCalendar: true,
@@ -71,10 +58,12 @@ function setupRequestForm() {
   });
 
   // Form submission
-  document.getElementById("ice-request-form").addEventListener("submit", function(e) {
+  document.getElementById("ice-request-form").addEventListener("submit", async function(e) {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    // Changed to await the validation result
+    const isValid = await validateForm();
+    if (!isValid) return;
 
     const user = auth.currentUser;
     if (!user) {
@@ -234,7 +223,7 @@ async function validateForm() {
       }
       
       const result = await response.json();
-      
+      console.log('Conflict check result:', result);
       if (result.has_conflicts) {
         // Simplified conflict message
         let conflictMsg = "Schedule conflicts with existing bookings. Please select a different time or date.";
@@ -266,14 +255,11 @@ async function validateForm() {
 
 function showError(elementId, message) {
   const errorElement = document.getElementById(elementId);
-  errorElement.textContent = message;
-  errorElement.style.display = 'block';
-  errorElement.style.color = '#f1c40f';
-}
-
-function showError(elementId, message) {
-  const errorElement = document.getElementById(elementId);
-  errorElement.textContent = message;
-  errorElement.style.display = 'block';
-  errorElement.style.color = '#f1c40f';
+  if (errorElement) {
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+    errorElement.style.color = '#f1c40f';
+  } else {
+    console.error(`Error element with ID ${elementId} not found`);
+  }
 }
