@@ -27,7 +27,7 @@ import stripe
 
 # Initialize Firebase Admin SDK (only once)
 if not firebase_admin._apps:
-    cred = credentials.Certificate("icerinkscheduling-firebase-adminsdk-fbsvc-97323839f3.json")
+    cred = credentials.Certificate("firebase.json")
     initialize_app(cred)
 
 load_dotenv('.env')
@@ -165,12 +165,12 @@ def require_admin(pool):
                     return jsonify({'error': 'Unauthorized - Email missing in token'}), 401
 
                 with pool.connect() as conn:
-                    query = sqlalchemy.text("SELECT 1 FROM ice.admin WHERE email = :email")
+                    query = sqlalchemy.text("SELECT 1 FROM public.admin WHERE email = :email")
                     result = conn.execute(query, {"email": user_email}).fetchone()
                     is_admin = result is not None
 
                 if not is_admin:
-                    print(f"Access Denied: '{user_email}' is not in ice.admin")
+                    print(f"Access Denied: '{user_email}' is not in public.admin")
                     return jsonify({'error': 'Forbidden - Not an administrator'}), 403
 
                 print(f"Access Granted: '{user_email}' accessed {f.__name__}")
@@ -234,10 +234,10 @@ def check_admin():
         print(f"Checking admin status for email from token: {user_email}")
 
         with pool.connect() as conn:
-            query = sqlalchemy.text("SELECT 1 FROM ice.admin WHERE email = :email")
+            query = sqlalchemy.text("SELECT 1 FROM public.admin WHERE email = :email")
             result = conn.execute(query, {"email": user_email}).fetchone()
             is_admin = result is not None
-            print(f"Querying ice.admin for '{user_email}', found: {is_admin}")
+            print(f"Querying public.admin for '{user_email}', found: {is_admin}")
         session['firebase_uid'] = decoded_token['uid']
         session['is_admin'] = is_admin
         return jsonify({'isAdmin': is_admin})
@@ -272,7 +272,7 @@ def check_user():
         with pool.connect() as conn:
             # Check if user is admin
             admin_check = conn.execute(
-                sqlalchemy.text("SELECT 1 FROM ice.admin WHERE email = :email"),
+                sqlalchemy.text("SELECT 1 FROM public.admin WHERE email = :email"),
                 {"email": email}
             ).fetchone()
             is_admin = admin_check is not None
@@ -282,7 +282,7 @@ def check_user():
 
             # Check if user already exists in renter table
             renter_check = conn.execute(
-                sqlalchemy.text("SELECT renter_id FROM ice.renter WHERE firebase_uid = :uid OR renter_email = :email"),
+                sqlalchemy.text("SELECT renter_id FROM public.renter WHERE firebase_uid = :uid OR renter_email = :email"),
                 {"uid": firebase_uid, "email": email}
             ).fetchone()
 
@@ -291,7 +291,7 @@ def check_user():
 
             # Insert minimal info for new user
             insert_query = sqlalchemy.text("""
-                INSERT INTO ice.renter (first_name, last_name, renter_email, firebase_uid, created_at)
+                INSERT INTO public.renter (first_name, last_name, renter_email, firebase_uid, created_at)
                 VALUES ('missing', 'missing', :email, :uid, NOW())
                 RETURNING renter_id
             """)
@@ -312,7 +312,7 @@ def cleanup_requests(request):
     try:
         with pool.connect() as conn:
             delete_query = sqlalchemy.text("""
-                DELETE FROM ice.rental_request
+                DELETE FROM public.rental_request
                 WHERE end_date < (NOW() - INTERVAL '4 months')
                 RETURNING request_id, renter_id, end_date
             """)
@@ -338,10 +338,10 @@ def cleanup_renters():
         with pool.connect() as conn:
             # Delete renters older than 1 month with no related rental requests
             delete_query = sqlalchemy.text("""
-                DELETE FROM ice.renter
+                DELETE FROM public.renter
                 WHERE created_at < (NOW() - INTERVAL '1 month')
                 AND renter_id NOT IN (
-                    SELECT DISTINCT renter_id FROM ice.rental_request
+                    SELECT DISTINCT renter_id FROM public.rental_request
                 )
                 RETURNING renter_id, renter_email
             """)
@@ -427,7 +427,7 @@ def register_user():
         # Prevent duplicate accounts
         with pool.connect() as conn:
             check_query = sqlalchemy.text("""
-                SELECT renter_id FROM ice.renter 
+                SELECT renter_id FROM public.renter 
                 WHERE renter_email = :email OR firebase_uid = :uid
             """)
             existing_user = conn.execute(check_query, {"email": email, "uid": firebase_uid}).fetchone()
@@ -437,7 +437,7 @@ def register_user():
 
             # Insert new verified user
             insert_query = sqlalchemy.text("""
-                INSERT INTO ice.renter 
+                INSERT INTO public.renter 
                 (first_name, last_name, renter_email, phone, firebase_uid, created_at)
                 VALUES 
                 (:first_name, :last_name, :email, :phone, :uid, NOW())
@@ -477,7 +477,7 @@ def get_user_profile(firebase_uid):
             # Query the renter table
             profile_query = sqlalchemy.text("""
                 SELECT first_name, last_name, phone, renter_email
-                FROM ice.renter 
+                FROM public.renter 
                 WHERE firebase_uid = :firebase_uid
             """)
             
@@ -524,7 +524,7 @@ def search_users():
                     CONCAT(first_name, ' ', last_name) as full_name,
                     renter_email as email,
                     phone
-                FROM ice.renter
+                FROM public.renter
                 WHERE 
                     first_name ILIKE :search_term OR
                     last_name ILIKE :search_term OR
@@ -574,7 +574,7 @@ def admin_get_all_users():
                     CONCAT(first_name, ' ', last_name) as full_name,
                     renter_email as email,
                     phone
-                FROM ice.renter
+                FROM public.renter
                 ORDER BY last_name, first_name
             """)
             
@@ -637,8 +637,8 @@ def admin_get_all_requests():
                     r.phone as user_phone,
                     EXTRACT(MONTH FROM rr.start_date) as month,
                     EXTRACT(YEAR FROM rr.start_date) as year
-                FROM ice.rental_request rr
-                JOIN ice.renter r ON rr.user_id = r.renter_id
+                FROM public.rental_request rr
+                JOIN public.renter r ON rr.user_id = r.renter_id
                 ORDER BY rr.start_date DESC, rr.start_time
             """)
             
@@ -689,7 +689,7 @@ def update_request_status(request_id):
         with pool.connect() as conn:
             # Update the request status
             update_query = sqlalchemy.text("""
-                UPDATE ice.rental_request
+                UPDATE public.rental_request
                 SET rental_status = :status,
                     declined_reason = CASE WHEN :status = 'denied' THEN :reason ELSE NULL END
                 WHERE request_id = :request_id
@@ -726,7 +726,7 @@ def mark_request_paid(request_id):
         with pool.connect() as conn:
             # Update the paid status
             update_query = sqlalchemy.text("""
-                UPDATE ice.rental_request
+                UPDATE public.rental_request
                 SET paid = true
                 WHERE request_id = :request_id
                 RETURNING request_id
@@ -783,8 +783,8 @@ def get_user_events(firebase_uid):
                     rental_status as status,
                     is_recurring,
                     recurrence_rule
-                FROM ice.rental_request
-                INNER JOIN ice.renter ON ice.rental_request.user_id = renter.renter_id
+                FROM public.rental_request
+                INNER JOIN public.renter ON public.rental_request.user_id = renter.renter_id
                 WHERE renter.firebase_uid = :firebase_uid
                 AND rental_status IN ('pending', 'approved','admin')
                 AND (
@@ -846,7 +846,7 @@ def check_conflicts():
                     is_recurring,
                     recurrence_rule,
                     rental_status
-                FROM ice.rental_request
+                FROM public.rental_request
                 WHERE 
                     rental_status IN ('approved', 'admin')
             """)
@@ -862,7 +862,7 @@ def check_conflicts():
                     end_time,
                     is_recurring,
                     recurrence_rule
-                FROM ice.admin_event
+                FROM public.admin_event
             """)
             admin_results = conn.execute(admin_query).fetchall()
 
@@ -1010,7 +1010,7 @@ def check_for_conflicts(data):
                     is_recurring,
                     recurrence_rule,
                     rental_status
-                FROM ice.rental_request
+                FROM public.rental_request
                 WHERE 
                     rental_status IN ('approved', 'admin')
             """)
@@ -1026,7 +1026,7 @@ def check_for_conflicts(data):
                     end_time,
                     is_recurring,
                     recurrence_rule
-                FROM ice.admin_event
+                FROM public.admin_event
             """)
             admin_results = conn.execute(admin_query).fetchall()
 
@@ -1074,17 +1074,7 @@ def check_for_conflicts(data):
                     has_conflict = dates_overlap and time_overlap and pattern_conflict
 
                 if has_conflict:
-                    rental_conflicts_list.append({
-                        "request_id": rental_id,
-                        "rental_name": rental_name,
-                        "start_date": rental_start_date.isoformat(),
-                        "end_date": rental_end_date.isoformat(),
-                        "start_time": str(rental_start_time),
-                        "end_time": str(rental_end_time),
-                        "is_recurring": rental_is_recurring,
-                        "recurrence_rule": rental_recurrence_rule,
-                        "rental_status": rental_status
-                    })
+                    return True
 
             for admin in admin_results:
                 event_id, event_name, event_start_date, event_end_date, event_start_time, event_end_time, event_is_recurring, event_recurrence_rule = admin
@@ -1151,7 +1141,7 @@ def submit_request():
             'is_recurring': data['is_recurring'],
             'recurrence_rule': data.get('recurrence_rule', None) if data['is_recurring'] else None
         }
-
+        
         conflict_result = check_for_conflicts(conflict_data)
         
         if conflict_result:
@@ -1160,7 +1150,7 @@ def submit_request():
         with pool.connect() as conn:
             # Get user_id from firebase_uid
             user_query = sqlalchemy.text("""
-                SELECT renter_id FROM ice.renter 
+                SELECT renter_id FROM public.renter 
                 WHERE firebase_uid = :firebase_uid
             """)
             user_result = conn.execute(
@@ -1175,7 +1165,7 @@ def submit_request():
             
             # Insert the new request
             insert_query = sqlalchemy.text("""
-                INSERT INTO ice.rental_request 
+                INSERT INTO public.rental_request 
                 (user_id, rental_name, additional_desc, start_date, end_date, 
                  start_time, end_time, rental_status, is_recurring, 
                  recurrence_rule, request_date)
@@ -1243,7 +1233,7 @@ def submit_event():
         with pool.connect() as conn:
             # Get user_id from firebase_uid
             user_query = sqlalchemy.text("""
-                SELECT admin_id FROM ice.admin
+                SELECT admin_id FROM public.admin
                 WHERE firebase_uid = :firebase_uid
             """)
             user_result = conn.execute(
@@ -1258,7 +1248,7 @@ def submit_event():
             
             # Insert the new request
             insert_query = sqlalchemy.text("""
-                INSERT INTO ice.admin_event 
+                INSERT INTO public.admin_event 
                 (admin_id, event_name, additional_desc, start_date, end_date, 
                  start_time, end_time, is_recurring, 
                  recurrence_rule, created_date)
@@ -1309,7 +1299,7 @@ def check_user_email():
             # Check if user exists
             user_query = sqlalchemy.text("""
                 SELECT EXISTS(
-                    SELECT 1 FROM ice.renter 
+                    SELECT 1 FROM public.renter 
                     WHERE renter_email = :email
                 ) as user_exists
             """)
@@ -1361,7 +1351,7 @@ def submit_admin_request():
             
             # 1. Get user_id from email
             user_query = sqlalchemy.text("""
-                SELECT renter_id FROM ice.renter 
+                SELECT renter_id FROM public.renter 
                 WHERE renter_email = :email
             """)
             user_result = conn.execute(
@@ -1376,7 +1366,7 @@ def submit_admin_request():
             
             # 2. Insert the admin request
             insert_query = sqlalchemy.text("""
-                INSERT INTO ice.rental_request 
+                INSERT INTO public.rental_request 
                 (user_id, rental_name, additional_desc, start_date, end_date, 
                 start_time, end_time, rental_status, is_recurring,
                 recurrence_rule, request_date, amount)
@@ -1480,7 +1470,7 @@ def get_user_requests(firebase_uid):
         with pool.connect() as conn:
             # Get user_id from firebase_uid
             user_query = sqlalchemy.text("""
-                SELECT renter_id FROM ice.renter 
+                SELECT renter_id FROM public.renter 
                 WHERE firebase_uid = :firebase_uid
             """)
             user_result = conn.execute(
@@ -1512,7 +1502,7 @@ def get_user_requests(firebase_uid):
                     request_date,
                     'pending' as request_status,
                     NULL as declined_reason
-                FROM ice.rental_request
+                FROM public.rental_request
                 WHERE user_id = :user_id 
                 AND rental_status = 'pending'
                 ORDER BY start_date, start_time
@@ -1538,7 +1528,7 @@ def get_user_requests(firebase_uid):
                     request_date,
                     'approved' as request_status,
                     NULL as declined_reason
-                FROM ice.rental_request
+                FROM public.rental_request
                 WHERE user_id = :user_id 
                 AND rental_status = 'approved'
                 ORDER BY start_date, start_time
@@ -1564,7 +1554,7 @@ def get_user_requests(firebase_uid):
                     request_date,
                     'admin' as request_status,
                     NULL as declined_reason
-                FROM ice.rental_request
+                FROM public.rental_request
                 WHERE user_id = :user_id 
                 AND rental_status = 'admin'
                 ORDER BY start_date, start_time
@@ -1590,7 +1580,7 @@ def get_user_requests(firebase_uid):
                     request_date,
                     'declined' as request_status,
                     declined_reason
-                FROM ice.rental_request
+                FROM public.rental_request
                 WHERE user_id = :user_id 
                 AND rental_status = 'denied'
                 ORDER BY start_date, start_time
@@ -1649,8 +1639,8 @@ def admin_get_user_requests(user_id):
                     r.phone as user_phone,
                     EXTRACT(MONTH FROM rr.start_date) as month,
                     EXTRACT(YEAR FROM rr.start_date) as year
-                FROM ice.rental_request rr
-                JOIN ice.renter r ON rr.user_id = r.renter_id
+                FROM public.rental_request rr
+                JOIN public.renter r ON rr.user_id = r.renter_id
                 WHERE rr.user_id = :user_id
                 ORDER BY rr.start_date DESC, rr.start_time
             """)
@@ -1664,7 +1654,7 @@ def admin_get_user_requests(user_id):
                     CONCAT(first_name, ' ', last_name) as full_name,
                     renter_email as email,
                     phone
-                FROM ice.renter
+                FROM public.renter
                 WHERE renter_id = :user_id
             """)
             
@@ -1726,7 +1716,7 @@ def get_admin_event():
                     recurrence_rule,
                     created_date,
                     admin_id
-                FROM ice.admin_event
+                FROM public.admin_event
                 ORDER BY start_date, start_time
             """)
             
@@ -1778,8 +1768,8 @@ def get_all_requests():
                     r.renter_email as user_email,
                     CONCAT(r.first_name, ' ', r.last_name) as user_name,
                     r.phone as user_phone
-                FROM ice.rental_request rr
-                JOIN ice.renter r ON rr.user_id = r.renter_id
+                FROM public.rental_request rr
+                JOIN public.renter r ON rr.user_id = r.renter_id
                 ORDER BY 
                     CASE WHEN rr.rental_status = 'pending' THEN 1
                          WHEN rr.rental_status = 'approved' THEN 2
@@ -1819,7 +1809,7 @@ def mark_paid(requestId):
             check_query = sqlalchemy.text("""
                 SELECT rr.request_id, rr.paid, r.renter_email as user_email
                 FROM rental_request rr
-                JOIN ice.renter r ON rr.user_id = r.renter_id
+                JOIN public.renter r ON rr.user_id = r.renter_id
                 WHERE rr.request_id = :request_id
             """)
             existing = conn.execute(
@@ -1851,7 +1841,7 @@ def mark_paid(requestId):
                     r.renter_email as user_email,
                     u.amount
                 FROM updated u
-                JOIN ice.renter r ON u.user_id = r.renter_id
+                JOIN public.renter r ON u.user_id = r.renter_id
             """)
             
             result = conn.execute(
@@ -1888,7 +1878,7 @@ def delete_admin_event(event_id):
         with pool.connect() as conn:
             # Delete the event
             delete_query = sqlalchemy.text("""
-                DELETE FROM ice.admin_event
+                DELETE FROM public.admin_event
                 WHERE event_id = :event_id
                 RETURNING event_id
             """)
@@ -1925,7 +1915,7 @@ def edit_event(eventId):
 
         with pool.connect() as conn:
             update_query = sqlalchemy.text("""
-                UPDATE ice.admin_event
+                UPDATE public.admin_event
                 SET end_date = :end_date
                 WHERE event_id = :event_id
                 RETURNING event_id
@@ -1971,10 +1961,10 @@ def approve_request(request_id):
         # Update request status in database
         with pool.connect() as conn:
             update_query = sqlalchemy.text("""
-                UPDATE ice.rental_request 
+                UPDATE public.rental_request 
                 SET rental_status = 'approved', amount = :amount
-                FROM ice.renter
-                WHERE ice.rental_request.user_id = ice.renter.renter_id
+                FROM public.renter
+                WHERE public.rental_request.user_id = public.renter.renter_id
                 AND request_id = :request_id
                 RETURNING renter_email, rental_name, start_date, end_date
             """)
@@ -2075,11 +2065,11 @@ def decline_request(request_id):
         # Update request status in database
         with pool.connect() as conn:
             update_query = sqlalchemy.text("""
-                UPDATE ice.rental_request 
+                UPDATE public.rental_request 
                 SET rental_status = 'denied', 
                 declined_reason = :reason
-                FROM ice.renter
-                WHERE ice.rental_request.user_id = ice.renter.renter_id
+                FROM public.renter
+                WHERE public.rental_request.user_id = public.renter.renter_id
                 AND request_id = :request_id
                 RETURNING renter_email, rental_name, start_date, end_date
             """)
@@ -2174,7 +2164,7 @@ def update_request_amount(request_id):
         with pool.connect() as conn:  # Establishing the connection here
             # Update only the amount for the existing approved request
             update_query = sqlalchemy.text("""
-                UPDATE ice.rental_request
+                UPDATE public.rental_request
                 SET amount = :amount
                 WHERE request_id = :request_id
                 AND rental_status in ('approved','admin')
@@ -2219,7 +2209,7 @@ def update_event_amount(event_id):
         with pool.connect() as conn:
             # Update only the amount for the existing admin event
             update_query = sqlalchemy.text("""
-                UPDATE ice.admin_event
+                UPDATE public.admin_event
                 SET amount = :amount
                 WHERE event_id = :event_id
                 RETURNING event_id
@@ -2258,8 +2248,8 @@ def delete_request(request_id):
             # Verify the request exists and belongs to the user
             verify_query = sqlalchemy.text("""
                 SELECT rr.user_id 
-                FROM ice.rental_request rr
-                JOIN ice.renter r ON rr.user_id = r.renter_id
+                FROM public.rental_request rr
+                JOIN public.renter r ON rr.user_id = r.renter_id
                 WHERE rr.request_id = :request_id
             """)
             result = conn.execute(verify_query, {"request_id": request_id}).fetchone()
@@ -2269,7 +2259,7 @@ def delete_request(request_id):
                 
             # Delete the request
             delete_query = sqlalchemy.text("""
-                DELETE FROM ice.rental_request
+                DELETE FROM public.rental_request
                 WHERE request_id = :request_id
             """)
             conn.execute(delete_query, {"request_id": request_id})
@@ -2306,7 +2296,7 @@ def get_events():
                     rental_status as status,
                     is_recurring,
                     recurrence_rule
-                FROM ice.rental_request 
+                FROM public.rental_request 
                 WHERE rental_status = 'approved'
                 AND (
                     (is_recurring = false AND start_date BETWEEN :start AND :end)
@@ -2333,7 +2323,7 @@ def get_events():
                     'admin' as status,
                     is_recurring,
                     recurrence_rule
-                FROM ice.admin_event
+                FROM public.admin_event
                 WHERE (
                     (is_recurring = false AND start_date BETWEEN :start AND :end)
                     OR 
@@ -2423,7 +2413,7 @@ def update_profile():
         with pool.connect() as conn:
             # Update the user profile
             update_query = sqlalchemy.text("""
-                UPDATE ice.renter
+                UPDATE public.renter
                 SET first_name = :first_name,
                     last_name = :last_name,
                     phone = :phone
@@ -2483,7 +2473,7 @@ def send_invoice():
                 SELECT 
                     payment_link,
                     paid
-                FROM ice.rental_request 
+                FROM public.rental_request 
                 WHERE request_id = :request_id
                 """
             )
@@ -2552,7 +2542,7 @@ def send_invoice():
                 with pool.connect() as conn:
                     update_query = sqlalchemy.text(
                         """
-                        UPDATE ice.rental_request 
+                        UPDATE public.rental_request 
                         SET payment_link = :payment_link
                         WHERE request_id = :request_id
                         """
@@ -2654,9 +2644,9 @@ def generate_monthly_invoices():
                     r.renter_email as user_email,
                     CONCAT(r.first_name, ' ', r.last_name) as user_name
                 FROM 
-                    ice.renter r
+                    public.renter r
                 JOIN 
-                    ice.rental_request rr ON r.renter_id = rr.user_id
+                    public.rental_request rr ON r.renter_id = rr.user_id
                 WHERE 
                     rr.rental_status in ('approved','admin') 
                     AND (rr.paid = FALSE OR rr.paid IS NULL)
@@ -2669,7 +2659,7 @@ def generate_monthly_invoices():
                 u.user_name,
                 COALESCE(
                     (SELECT EXISTS(
-                        SELECT 1 FROM ice.monthly_invoice 
+                        SELECT 1 FROM public.monthly_invoice 
                         WHERE user_id = u.user_id 
                         AND invoice_month = :month 
                         AND invoice_year = :year
@@ -2707,7 +2697,7 @@ def generate_monthly_invoices():
                     array_agg(TO_CHAR(start_date, 'YYYY-MM-DD')) as start_dates,
                     array_agg(TO_CHAR(end_date, 'YYYY-MM-DD')) as end_dates
                 FROM 
-                    ice.rental_request
+                    public.rental_request
                 WHERE 
                     user_id = :user_id
                     AND rental_status = 'approved'
@@ -2782,7 +2772,7 @@ def generate_monthly_invoices():
                 # 5. Insert record into monthly_invoice table
                 with pool.connect() as conn:
                     insert_query = sqlalchemy.text("""
-                    INSERT INTO ice.monthly_invoice 
+                    INSERT INTO public.monthly_invoice 
                     (user_id, invoice_month, invoice_year, amount, payment_link, stripe_invoice_id)
                     VALUES (:user_id, :month, :year, :amount, :payment_link, :stripe_invoice_id)
                     """)
@@ -2940,7 +2930,7 @@ def stripe_webhook():
                     with conn.begin():
                         # Update monthly invoice status
                         update_query = sqlalchemy.text("""
-                        UPDATE ice.monthly_invoice 
+                        UPDATE public.monthly_invoice 
                         SET paid = TRUE, 
                             updated_at = CURRENT_TIMESTAMP
                         WHERE user_id = :user_id 
@@ -2961,7 +2951,7 @@ def stripe_webhook():
                             request_id_list = [int(id) for id in request_ids.split(',')]
                             
                             update_requests_query = sqlalchemy.text("""
-                            UPDATE ice.rental_request 
+                            UPDATE public.rental_request 
                             SET paid = TRUE 
                             WHERE request_id = ANY(:request_ids)
                             """)
@@ -2990,7 +2980,7 @@ def stripe_webhook():
                 with pool.connect() as conn:
                     with conn.begin():
                         update_query = sqlalchemy.text(
-                            "UPDATE ice.rental_request SET paid = TRUE WHERE request_id = :request_id"
+                            "UPDATE public.rental_request SET paid = TRUE WHERE request_id = :request_id"
                         )
                         result = conn.execute(update_query, {"request_id": request_id})
                         print(f"✅ DB updated for request_id={request_id}, rows affected: {result.rowcount}")
@@ -3030,11 +3020,11 @@ def get_monthly_invoices():
                 mi.updated_at,
                 COUNT(rr.request_id) as request_count
             FROM 
-                ice.monthly_invoice mi
+                public.monthly_invoice mi
             JOIN 
-                ice.renter r ON mi.user_id = r.renter_id
+                public.renter r ON mi.user_id = r.renter_id
             LEFT JOIN 
-                ice.rental_request rr ON r.renter_id = rr.user_id AND 
+                public.rental_request rr ON r.renter_id = rr.user_id AND 
                 rr.rental_status = 'approved' AND 
                 (rr.paid = (mi.paid = TRUE))
             GROUP BY 
